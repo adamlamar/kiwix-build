@@ -38,7 +38,7 @@ install:
      REM Install openssh (scp) for deployement
      choco install openssh openssl.light
 
-  - cmd: openssl enc -d -aes-256-cbc -md sha256 -pass pass:%ENC_PASSWD% -in appveyor\nightlybot_id_key.enc -out appveyor\nightlybot_id_key
+  #- cmd: openssl enc -d -aes-256-cbc -md sha256 -pass pass:%ENC_PASSWD% -in appveyor\nightlybot_id_key.enc -out appveyor\nightlybot_id_key
 
 
 
@@ -62,8 +62,8 @@ build_script:
   - appveyor\install_kiwix-desktop.cmd
 
 before_deploy:
-  - cmd: openssl enc -d -pbkdf2 -aes-256-cbc -md sha256 -pass pass:%win_certificate_secret% -in appveyor\kiwix.pfx.enc -out appveyor\kiwix.pfx
-  - cmd: '%MINGW64_RUN% "cd /c/projects/kiwix-build && appveyor/package_kiwix-desktop.sh"'
+#  - cmd: openssl enc -d -pbkdf2 -aes-256-cbc -md sha256 -pass pass:%win_certificate_secret% -in appveyor\kiwix.pfx.enc -out appveyor\kiwix.pfx
+#  - cmd: '%MINGW64_RUN% "cd /c/projects/kiwix-build && appveyor/package_kiwix-desktop.sh"'
 
 deploy_script:
-  - cmd: '%MINGW64_RUN% "cd /c/projects/kiwix-build && appveyor/deploy.sh"'
+#  - cmd: '%MINGW64_RUN% "cd /c/projects/kiwix-build && appveyor/deploy.sh"'
