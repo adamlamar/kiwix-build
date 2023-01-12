@@ -70,4 +70,4 @@ deploy_script:
 
 artifacts:
   - path: C:/projects/NIGHTLY_KIWIX_ARCHIVES/**/*.zip
-  - name: kiwix-desktop
+    name: kiwix-desktop
