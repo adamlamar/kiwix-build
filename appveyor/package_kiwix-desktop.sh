@@ -14,6 +14,10 @@ else
   fi
 fi
 
+# override
+KIWIX_ARCHIVES_DIR=/c/projects/kiwix-build/artifacts
+KIWIX_DIR=kiwix-desktop_windows_x64
+
 if [[ "$KIWIX_DIR" ]]
 then
   KIWIX_ARCH_NAME=${KIWIX_DIR}.zip
