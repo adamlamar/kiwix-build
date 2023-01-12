@@ -69,5 +69,5 @@ deploy_script:
 #  - cmd: '%MINGW64_RUN% "cd /c/projects/kiwix-build && appveyor/deploy.sh"'
 
 artifacts:
-  - path: C:/projects/NIGHTLY_KIWIX_ARCHIVES/**/*.zip
+  - path: ../NIGHTLY_KIWIX_ARCHIVES/**/*.zip
     name: kiwix-desktop
