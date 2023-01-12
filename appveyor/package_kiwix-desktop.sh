@@ -29,7 +29,7 @@ then
   cp /c/OpenSSL-v111-Win64/bin/libcrypto-1_1-x64.dll $KIWIX_DIR
   cp /c/OpenSSL-v111-Win64/bin/libssl-1_1-x64.dll $KIWIX_DIR
 
-  signtool.exe sign -f appveyor/kiwix.pfx -p $win_certificate_password -t http://timestamp.digicert.com -d "Kiwix-desktop application" -fd SHA256 $KIWIX_DIR/kiwix-desktop.exe
+  #signtool.exe sign -f appveyor/kiwix.pfx -p $win_certificate_password -t http://timestamp.digicert.com -d "Kiwix-desktop application" -fd SHA256 $KIWIX_DIR/kiwix-desktop.exe
 
   7z a -tzip $KIWIX_ARCHIVES_DIR/$KIWIX_ARCH_NAME $KIWIX_DIR
 fi
