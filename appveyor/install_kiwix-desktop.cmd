@@ -1,6 +1,6 @@
 REM ========================================================
 REM Install kiwix-desktop
-git clone https://github.com/kiwix/kiwix-desktop || exit /b 1
+git clone --branch windows-download-hang https://github.com/adamlamar/kiwix-desktop || exit /b 1
 cd kiwix-desktop
 echo "Running qmake"
 SET _WITH_CONSOLE=1
