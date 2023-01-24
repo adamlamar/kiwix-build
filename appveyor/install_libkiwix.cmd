@@ -1,6 +1,6 @@
 REM ========================================================
 REM Install libkiwix
-git clone https://github.com/adamlamar/libkiwix.git || exit /b 1
+git clone --branch split-size https://github.com/adamlamar/libkiwix.git || exit /b 1
 cd libkiwix
 set CPPFLAGS="-I%EXTRA_DIR%/include"
 meson . build --prefix %EXTRA_DIR% --default-library static --buildtype release || exit /b 1
