@@ -34,7 +34,7 @@ jobs:
     - name: Install Python modules
       shell: bash
       run: |
-        pip3 install meson pytest requests distro paramiko
+        pip3 install meson pytest requests distro paramiko pillow
         pip3 install --no-deps $GITHUB_WORKSPACE
     - name: Install QT
       if: ${{ matrix.config == 'native_mixed' }}
@@ -97,6 +97,25 @@ jobs:
       env:
         SIGNTOOL_PATH: "C:/Program Files (x86)/Windows Kits/10/bin/10.0.22621.0/x86/signtool.exe"
         SSH_KEY: ${{ runner.temp }}/id_rsa
+    - name: List built artifacts
+      if: matrix.config == 'native_mixed'
+      shell: bash
+      run: |
+        echo "Contents of temp directory:"
+        ls -la ${{ runner.temp }}/kiwix-desktop_windows_x64_* || echo "No files found in runner.temp"
+        echo "Contents of TEMP directory:"
+        ls -la $TEMP/kiwix-desktop_windows_x64_* || echo "No files found in TEMP"
+        echo "Looking for .msix files:"
+        find ${{ runner.temp }} -name "*.msix" -o -name "*.zip" | grep kiwix || echo "No kiwix files found"
+    - name: Upload Windows Artifacts
+      if: matrix.config == 'native_mixed'
+      uses: actions/upload-artifact@v4
+      with:
+        name: kiwix-desktop-windows-${{ matrix.config }}
+        path: |
+          ${{ env.TEMP }}/kiwix-desktop_windows_x64_*.*
+        retention-days: 30
+        if-no-files-found: warn
     - name: Upload failure logs
       if: failure()
       run: |
