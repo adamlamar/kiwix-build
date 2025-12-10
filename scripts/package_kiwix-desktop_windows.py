@@ -10,6 +10,8 @@ parser.add_argument("out_dir")
 parser.add_argument("--static_dir")
 parser.add_argument("archive_path", help="The full path of the archive to create")
 parser.add_argument("-s", "--sign", action="store_true")
+parser.add_argument("--msix", action="store_true", help="Also create MSIX package")
+parser.add_argument("--version", help="Version for MSIX package")
 
 args = parser.parse_args()
 
@@ -75,3 +77,89 @@ print(
 shutil.make_archive(
     archive_path.with_suffix(""), "zip", root_dir=out_dir, base_dir=""
 )
+
+# Create MSIX package if requested
+if args.msix:
+    print("Creating MSIX package...")
+    msix_path = archive_path.with_suffix(".msix")
+
+    # Get the version for MSIX package
+    version = args.version
+    if not version:
+        # Try to extract version from a version file or use default
+        version = "1.0.0.0"
+        print(f"No version specified, using default: {version}")
+
+    # Ensure version is in proper format (X.X.X.X)
+    version_parts = version.split('.')
+    if len(version_parts) < 4:
+        version_parts.extend(['0'] * (4 - len(version_parts)))
+    elif len(version_parts) > 4:
+        version_parts = version_parts[:4]
+    version = '.'.join(version_parts)
+
+    # Path to MSIX creation script
+    script_dir = Path(__file__).parent
+    msix_script = script_dir / "create_msix_package.py"
+
+    # Try to find the manifest template
+    template_path = None
+    script_parent = script_dir.parent
+
+    possible_template_paths = [
+        script_parent / "templates" / "Package.appxmanifest",  # Relative to script directory
+        Path.cwd() / "templates" / "Package.appxmanifest",  # Current working directory
+        Path(os.environ.get('GITHUB_WORKSPACE', '.')) / 'templates' / 'Package.appxmanifest',  # GitHub workspace
+        Path(__file__).resolve().parent.parent / "templates" / "Package.appxmanifest"  # Absolute path resolution
+    ]
+
+    print(f"Script directory: {script_dir}")
+    print(f"Script parent directory: {script_parent}")
+    print(f"Current working directory: {Path.cwd()}")
+    print(f"Looking for manifest template in:")
+    for i, path in enumerate(possible_template_paths):
+        try:
+            # Resolve path to handle relative paths correctly
+            resolved_path = path.resolve()
+            exists = resolved_path.exists()
+            print(f"  {i+1}. {resolved_path} - {'Found' if exists else 'Not found'}")
+            if exists and template_path is None:
+                template_path = resolved_path
+        except (OSError, RuntimeError) as e:
+            print(f"  {i+1}. {path} - Error checking: {e}")
+
+    if template_path:
+        print(f"Using template: {template_path}")
+    else:
+        print("Warning: No manifest template found!")
+
+    if msix_script.exists():
+        try:
+            # Create MSIX command
+            msix_command = [
+                sys.executable, str(msix_script),
+                str(out_dir),
+                str(msix_path),
+                "--version", version
+            ]
+
+            # Add template path if found
+            if template_path:
+                msix_command.extend(["--template", str(template_path)])
+
+            if args.sign:
+                msix_command.extend(["--sign"])
+                if "SIGNTOOL_THUMBPRINT" in os.environ:
+                    msix_command.extend(["--cert-thumbprint", os.environ["SIGNTOOL_THUMBPRINT"]])
+                if "SIGNTOOL_PATH" in os.environ:
+                    msix_command.extend(["--signtool-path", os.environ["SIGNTOOL_PATH"]])
+
+            print(f"Creating MSIX package with template: {template_path}")
+            subprocess.run(msix_command, check=True)
+            print(f"MSIX package created: {msix_path}")
+        except subprocess.CalledProcessError as e:
+            print(f"Warning: Failed to create MSIX package: {e}")
+        except Exception as e:
+            print(f"Warning: Error creating MSIX package: {e}")
+    else:
+        print(f"Warning: MSIX creation script not found: {msix_script}")

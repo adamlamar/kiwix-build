@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 
+import os
 import tarfile
 from pathlib import Path
-from common import upload, OS_NAME, COMPILE_CONFIG, HOME
+from common import upload, OS_NAME, COMPILE_CONFIG, HOME, print_message
+
+# Skip upload for forks that don't have access to tmp.kiwix.org
+if os.environ.get('GITHUB_REPOSITORY', '').lower() != 'kiwix/kiwix-build':
+    print_message("Skipping failure log upload for fork: {}", os.environ.get('GITHUB_REPOSITORY', 'unknown'))
+    exit(0)
 
 ARCHIVE_NAME = Path(f"fail_log_{OS_NAME}_{COMPILE_CONFIG}.tar.gz")
 

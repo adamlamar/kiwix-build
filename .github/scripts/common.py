@@ -364,6 +364,11 @@ def upload_archive(archive, project, make_release, dev_branch=None):
         print_message("No archive {} to upload!", archive)
         return
 
+    # Skip upload for forks that don't have access to tmp.kiwix.org
+    if os.environ.get('GITHUB_REPOSITORY', '').lower() != 'kiwix/kiwix-build':
+        print_message("Skipping upload for fork: {}", os.environ.get('GITHUB_REPOSITORY', 'unknown'))
+        return
+
     if project.startswith("kiwix-") or project in ["libkiwix"]:
         host = "ci@master.download.kiwix.org:30022"
         dest_path = "/data/download/"
@@ -546,22 +551,52 @@ def create_desktop_image(make_release):
         build_path = BASE_DIR / "org.kiwix.desktop.flatpak"
         app_name = "org.kiwix.desktop.{}.flatpak".format(postfix)
         print_message("archive is {}", build_path)
+        print_message("Copy Build to {}".format(TMP_DIR / app_name))
+        shutil.copy(str(build_path), str(TMP_DIR / app_name))
+        return TMP_DIR / app_name
     elif platform.system() == "Windows":
         archive_basename = "kiwix-desktop_windows_x64_{}".format(postfix)
         working_dir = INSTALL_DIR / archive_basename
         build_path = Path(str(working_dir) + ".zip")
+        msix_path = Path(str(working_dir) + ".msix")
         app_name = build_path.name
+
+        # Get version for MSIX package
+        from kiwixbuild.versions import main_project_versions
+        version = main_project_versions.get("kiwix-desktop", "1.0.0")
+        # Convert to proper MSIX version format (X.X.X.X)
+        version_parts = version.split('.')
+        if len(version_parts) < 4:
+            version_parts.extend(['0'] * (4 - len(version_parts)))
+        elif len(version_parts) > 4:
+            version_parts = version_parts[:4]
+        msix_version = '.'.join(version_parts)
+
         command = [
             "python",
             KBUILD_SOURCE_DIR / "scripts" / "package_kiwix-desktop_windows.py",
             str(INSTALL_DIR),
             str(working_dir),
             str(build_path),
+            "--msix",
+            "--version", msix_version
         ]
         if make_release:
             command += ["-s"]
-        print_message("Package archive of kiwix-desktop")
+        print_message("Package archive and MSIX of kiwix-desktop")
         subprocess.check_call(command, cwd=str(HOME))
+
+        # Copy both ZIP and MSIX to temp directory
+        print_message("Copy ZIP to {}".format(TMP_DIR / app_name))
+        shutil.copy(str(build_path), str(TMP_DIR / app_name))
+
+        if msix_path.exists():
+            msix_name = "kiwix-desktop_windows_x64_{}.msix".format(postfix)
+            print_message("Copy MSIX to {}".format(TMP_DIR / msix_name))
+            shutil.copy(str(msix_path), str(TMP_DIR / msix_name))
+
+        # Return ZIP path for backward compatibility
+        return TMP_DIR / app_name
     else:
         build_path = HOME / "Kiwix-{}-x86_64.AppImage".format(postfix)
         app_name = "kiwix-desktop_x86_64_{}.appimage".format(postfix)
@@ -576,9 +611,9 @@ def create_desktop_image(make_release):
         print_message("Build AppImage of kiwix-desktop")
         subprocess.check_call(command, cwd=str(HOME), env=env)
 
-    print_message("Copy Build to {}".format(TMP_DIR / app_name))
-    shutil.copy(str(build_path), str(TMP_DIR / app_name))
-    return TMP_DIR / app_name
+        print_message("Copy Build to {}".format(TMP_DIR / app_name))
+        shutil.copy(str(build_path), str(TMP_DIR / app_name))
+        return TMP_DIR / app_name
 
 
 def update_flathub_git():
