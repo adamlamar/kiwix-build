@@ -118,103 +118,91 @@ jobs:
           C:/Users/runneradmin/AppData/Local/Temp/kiwix-desktop_windows_x64_*.*
         retention-days: 30
         if-no-files-found: warn
-    - name: Setup certificate for MSIX signing
-      if: ${{ matrix.config == 'native_mixed' && env.SIGNING_CERTIFICATE != '' }}
-      shell: pwsh
-      run: |
-        $certBytes = [Convert]::FromBase64String($env:SIGNING_CERTIFICATE)
-        $certPath = "$env:TEMP\signing-cert.pfx"
-        [IO.File]::WriteAllBytes($certPath, $certBytes)
-        echo "CERT_PATH=$certPath" >> $env:GITHUB_ENV
-      env:
-        SIGNING_CERTIFICATE: ${{ secrets.SIGNING_CERTIFICATE }}
     - name: Sign MSIX package
       if: ${{ matrix.config == 'native_mixed' && env.SIGNING_CERTIFICATE != '' }}
-      shell: pwsh
+      shell: powershell
       run: |
-        Write-Host "Certificate path: $env:CERT_PATH"
+        Write-Host "Signing MSIX package..." -ForegroundColor Yellow
 
-        # Verify certificate exists and get info
-        if (Test-Path $env:CERT_PATH) {
-          Write-Host "Certificate file exists" -ForegroundColor Green
-          try {
-            $cert = Get-PfxCertificate -FilePath $env:CERT_PATH
-            Write-Host "Certificate Subject: $($cert.Subject)"
-            Write-Host "Certificate Thumbprint: $($cert.Thumbprint)"
-            Write-Host "Certificate Valid From: $($cert.NotBefore)"
-            Write-Host "Certificate Valid To: $($cert.NotAfter)"
-            Write-Host "Certificate Has Private Key: $($cert.HasPrivateKey)"
+        # Create certificate file from base64
+        $certBytes = [Convert]::FromBase64String($env:SIGNING_CERTIFICATE)
+        $certPath = "signing-cert.pfx"
+        [IO.File]::WriteAllBytes($certPath, $certBytes)
 
-            # Check for code signing capability
-            $extensions = $cert.Extensions | Where-Object { $_.Oid.Value -eq "2.5.29.37" }
-            if ($extensions) {
-              Write-Host "Certificate has Enhanced Key Usage extensions" -ForegroundColor Green
-            }
-          } catch {
-            Write-Host "Warning: Could not read certificate info: $($_.Exception.Message)" -ForegroundColor Yellow
-          }
-        } else {
-          Write-Host "Certificate file not found!" -ForegroundColor Red
+        # Find SignTool
+        $signToolPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe"
+        if (-not (Test-Path $signToolPath)) {
+          $WindowsKitsPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
+          $signToolPath = Get-ChildItem -Path $WindowsKitsPath -Recurse -Filter "signtool.exe" |
+                         Where-Object { $_.Directory.Name -like "*x64*" } |
+                         Sort-Object Name -Descending |
+                         Select-Object -First 1 -ExpandProperty FullName
+        }
+
+        if (-not (Test-Path $signToolPath)) {
+          Write-Error "SignTool not found. Please install Windows SDK."
           exit 1
         }
 
-        # Find MSIX files to sign
+        # Find MSIX files
         $msixFiles = Get-ChildItem -Path "C:/Users/RUNNER~1/AppData/Local/Temp/" -Name "kiwix-desktop_windows_x64_*.msix"
-        if ($msixFiles.Count -gt 0) {
-          foreach ($msixFile in $msixFiles) {
-            $fullPath = "C:/Users/RUNNER~1/AppData/Local/Temp/$msixFile"
-            Write-Host "Signing MSIX: $fullPath"
-
-            $signToolPath = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe"
-
-            # Method 1: Direct file signing (as shown in create-dev-cert.ps1)
-            Write-Host "Attempting to sign with certificate file (method from create-dev-cert.ps1)..."
-            & $signToolPath sign /fd SHA256 /f $env:CERT_PATH /p $env:SIGNING_PASSWORD $fullPath
-
-            if ($LASTEXITCODE -eq 0) {
-              Write-Host "Successfully signed: $msixFile" -ForegroundColor Green
-            } else {
-              Write-Host "Method 1 failed (exit code: $LASTEXITCODE). Trying alternative approaches..." -ForegroundColor Yellow
-
-              # Method 2: Install certificate to current user store and sign
-              Write-Host "Installing certificate to current user store..."
-              try {
-                $certPassword = ConvertTo-SecureString -String $env:SIGNING_PASSWORD -Force -AsPlainText
-                $installedCert = Import-PfxCertificate -FilePath $env:CERT_PATH -CertStoreLocation "Cert:\CurrentUser\My" -Password $certPassword -Exportable
-                Write-Host "Certificate installed with thumbprint: $($installedCert.Thumbprint)"
-
-                # Sign using thumbprint
-                & $signToolPath sign /sha1 $installedCert.Thumbprint /fd SHA256 $fullPath
-
-                if ($LASTEXITCODE -eq 0) {
-                  Write-Host "Successfully signed with certificate from store: $msixFile" -ForegroundColor Green
-                } else {
-                  Write-Host "Method 2 also failed (exit code: $LASTEXITCODE). Trying without timestamp..." -ForegroundColor Yellow
-
-                  # Method 3: Try without timestamping (for self-signed certs)
-                  & $signToolPath sign /sha1 $installedCert.Thumbprint /fd SHA256 $fullPath
-
-                  if ($LASTEXITCODE -eq 0) {
-                    Write-Host "Successfully signed without timestamping: $msixFile" -ForegroundColor Green
-                  } else {
-                    Write-Host "All signing methods failed for: $msixFile" -ForegroundColor Red
-                  }
-                }
-
-                # Clean up
-                try {
-                  Remove-Item "Cert:\CurrentUser\My\$($installedCert.Thumbprint)" -Force -ErrorAction SilentlyContinue
-                } catch {
-                  Write-Host "Warning: Could not remove certificate from store" -ForegroundColor Yellow
-                }
-              } catch {
-                Write-Host "Failed to install certificate: $($_.Exception.Message)" -ForegroundColor Red
-              }
-            }
-          }
-        } else {
-          Write-Host "No MSIX files found to sign" -ForegroundColor Yellow
+        if ($msixFiles.Count -eq 0) {
+          $msixFiles = Get-ChildItem -Path "C:/Users/runneradmin/AppData/Local/Temp/" -Name "kiwix-desktop_windows_x64_*.msix"
         }
+
+        if ($msixFiles.Count -eq 0) {
+          Write-Error "No MSIX package found to sign."
+          exit 1
+        }
+
+        Write-Host "Using SignTool: $signToolPath" -ForegroundColor Cyan
+
+        foreach ($msixFileName in $msixFiles) {
+          # Determine full path
+          $msixFile = $null
+          $fullPath1 = "C:/Users/RUNNER~1/AppData/Local/Temp/$msixFileName"
+          $fullPath2 = "C:/Users/runneradmin/AppData/Local/Temp/$msixFileName"
+
+          if (Test-Path $fullPath1) {
+            $msixFile = Get-Item $fullPath1
+          } elseif (Test-Path $fullPath2) {
+            $msixFile = Get-Item $fullPath2
+          }
+
+          if (-not $msixFile) {
+            Write-Warning "Could not find MSIX file: $msixFileName"
+            continue
+          }
+
+          Write-Host "Signing package: $($msixFile.Name)" -ForegroundColor Cyan
+
+          # Sign the package with timestamp
+          & $signToolPath sign /fd SHA256 /f $certPath /p $env:SIGNING_PASSWORD /tr http://timestamp.digicert.com /td sha256 $msixFile.FullName
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to sign MSIX package: $($msixFile.Name) (exit code: $LASTEXITCODE)"
+            Remove-Item $certPath -Force -ErrorAction SilentlyContinue
+            exit 1
+          }
+
+          Write-Host "✅ MSIX package signed successfully: $($msixFile.Name)" -ForegroundColor Green
+
+          # Verify the signature (don't fail on verification errors for self-signed certs)
+          Write-Host "Verifying package signature..." -ForegroundColor Yellow
+          & $signToolPath verify /pa /v $msixFile.FullName
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ Package signature verified" -ForegroundColor Green
+          } else {
+            Write-Host "⚠️  Package signature verification failed (expected for self-signed certificates)" -ForegroundColor Yellow
+            Write-Host "This is normal for development certificates and doesn't affect package functionality" -ForegroundColor Gray
+          }
+        }
+
+        # Clean up certificate file
+        Remove-Item $certPath -Force -ErrorAction SilentlyContinue
+
+        # Reset exit code to success since verification failure is expected
+        $global:LASTEXITCODE = 0
       env:
         SIGNING_CERTIFICATE: ${{ secrets.SIGNING_CERTIFICATE }}
         SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
