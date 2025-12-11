@@ -12,8 +12,8 @@ $appDir = "TestApp"
 New-Item -ItemType Directory -Path $appDir -Force
 
 # Copy manifest from the repository
-$manifestSource = "$PSScriptRoot\..\test-files\Package.appxmanifest"
-$manifestDest = "$appDir\Package.appxmanifest"
+$manifestSource = "$PSScriptRoot\..\test-files\AppxManifest.xml"
+$manifestDest = "$appDir\AppxManifest.xml"
 Copy-Item $manifestSource $manifestDest
 
 # Create a dummy executable (minimal PE header)
