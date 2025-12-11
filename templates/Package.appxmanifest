@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
+  <Identity Name="org.kiwix.desktop"
+            Version="{VERSION}"
+            Publisher="CN=Kiwix"
+            ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Kiwix Desktop</DisplayName>
+    <PublisherDisplayName>Kiwix</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>Kiwix Desktop - Offline Wikipedia and Educational Content Reader</Description>
+    <PackageIntegrityLevel>mediumIL</PackageIntegrityLevel>
+    <PackageIntegrityLevelDeclaration>mediumIL</PackageIntegrityLevelDeclaration>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+
+  <Applications>
+    <Application Id="KiwixDesktop" Executable="kiwix-desktop.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="Kiwix Desktop"
+                          Description="Offline Wikipedia and Educational Content Reader"
+                          BackgroundColor="#E8E8E8"
+                          Square150x150Logo="Assets\Square150x150Logo.png"
+                          Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+      </uap:VisualElements>
+
+      <Extensions>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="zimfile">
+            <uap:DisplayName>ZIM File</uap:DisplayName>
+            <uap:Logo>Assets\Square44x44Logo.png</uap:Logo>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.zim</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+</Package>
