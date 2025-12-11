@@ -364,6 +364,11 @@ def upload_archive(archive, project, make_release, dev_branch=None):
         print_message("No archive {} to upload!", archive)
         return
 
+    # Skip upload for forks that don't have access to tmp.kiwix.org
+    if os.environ.get('GITHUB_REPOSITORY', '').lower() != 'kiwix/kiwix-build':
+        print_message("Skipping upload for fork: {}", os.environ.get('GITHUB_REPOSITORY', 'unknown'))
+        return
+
     if project.startswith("kiwix-") or project in ["libkiwix"]:
         host = "ci@master.download.kiwix.org:30022"
         dest_path = "/data/download/"
