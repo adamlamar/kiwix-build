@@ -105,16 +105,84 @@ jobs:
       if: ${{ matrix.config == 'native_mixed' && env.SIGNING_CERTIFICATE != '' }}
       shell: pwsh
       run: |
+        Write-Host "Certificate path: $env:CERT_PATH"
+
+        # Verify certificate exists and get info
+        if (Test-Path $env:CERT_PATH) {
+          Write-Host "Certificate file exists" -ForegroundColor Green
+          try {
+            $cert = Get-PfxCertificate -FilePath $env:CERT_PATH
+            Write-Host "Certificate Subject: $($cert.Subject)"
+            Write-Host "Certificate Thumbprint: $($cert.Thumbprint)"
+            Write-Host "Certificate Valid From: $($cert.NotBefore)"
+            Write-Host "Certificate Valid To: $($cert.NotAfter)"
+            Write-Host "Certificate Has Private Key: $($cert.HasPrivateKey)"
+
+            # Check for code signing capability
+            $extensions = $cert.Extensions | Where-Object { $_.Oid.Value -eq "2.5.29.37" }
+            if ($extensions) {
+              Write-Host "Certificate has Enhanced Key Usage extensions" -ForegroundColor Green
+            }
+          } catch {
+            Write-Host "Warning: Could not read certificate info: $($_.Exception.Message)" -ForegroundColor Yellow
+          }
+        } else {
+          Write-Host "Certificate file not found!" -ForegroundColor Red
+          exit 1
+        }
+
+        # Find MSIX files to sign
         $msixFiles = Get-ChildItem -Path "C:/Users/RUNNER~1/AppData/Local/Temp/" -Name "kiwix-desktop_windows_x64_*.msix"
         if ($msixFiles.Count -gt 0) {
           foreach ($msixFile in $msixFiles) {
             $fullPath = "C:/Users/RUNNER~1/AppData/Local/Temp/$msixFile"
             Write-Host "Signing MSIX: $fullPath"
-            & "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe" sign /fd sha256 /f $env:CERT_PATH /p $env:SIGNING_PASSWORD $fullPath
+
+            $signToolPath = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe"
+
+            # Method 1: Direct file signing (as shown in create-dev-cert.ps1)
+            Write-Host "Attempting to sign with certificate file (method from create-dev-cert.ps1)..."
+            & $signToolPath sign /fd SHA256 /f $env:CERT_PATH /p $env:SIGNING_PASSWORD $fullPath
+
             if ($LASTEXITCODE -eq 0) {
               Write-Host "Successfully signed: $msixFile" -ForegroundColor Green
             } else {
-              Write-Host "Failed to sign: $msixFile" -ForegroundColor Red
+              Write-Host "Method 1 failed (exit code: $LASTEXITCODE). Trying alternative approaches..." -ForegroundColor Yellow
+
+              # Method 2: Install certificate to current user store and sign
+              Write-Host "Installing certificate to current user store..."
+              try {
+                $certPassword = ConvertTo-SecureString -String $env:SIGNING_PASSWORD -Force -AsPlainText
+                $installedCert = Import-PfxCertificate -FilePath $env:CERT_PATH -CertStoreLocation "Cert:\CurrentUser\My" -Password $certPassword -Exportable
+                Write-Host "Certificate installed with thumbprint: $($installedCert.Thumbprint)"
+
+                # Sign using thumbprint
+                & $signToolPath sign /sha1 $installedCert.Thumbprint /fd SHA256 $fullPath
+
+                if ($LASTEXITCODE -eq 0) {
+                  Write-Host "Successfully signed with certificate from store: $msixFile" -ForegroundColor Green
+                } else {
+                  Write-Host "Method 2 also failed (exit code: $LASTEXITCODE). Trying without timestamp..." -ForegroundColor Yellow
+
+                  # Method 3: Try without timestamping (for self-signed certs)
+                  & $signToolPath sign /sha1 $installedCert.Thumbprint /fd SHA256 $fullPath
+
+                  if ($LASTEXITCODE -eq 0) {
+                    Write-Host "Successfully signed without timestamping: $msixFile" -ForegroundColor Green
+                  } else {
+                    Write-Host "All signing methods failed for: $msixFile" -ForegroundColor Red
+                  }
+                }
+
+                # Clean up
+                try {
+                  Remove-Item "Cert:\CurrentUser\My\$($installedCert.Thumbprint)" -Force -ErrorAction SilentlyContinue
+                } catch {
+                  Write-Host "Warning: Could not remove certificate from store" -ForegroundColor Yellow
+                }
+              } catch {
+                Write-Host "Failed to install certificate: $($_.Exception.Message)" -ForegroundColor Red
+              }
             }
           }
         } else {
