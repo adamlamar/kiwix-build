@@ -27,8 +27,8 @@ jobs:
       with:
         python-version: '3.13'
     - name: Install packages
-      run: |
-        choco.exe install pkgconfiglite ninja
+        run: |
+        choco.exe install pkgconfiglite ninja --allow-empty-checksums -y
     - name: Install python modules
       shell: bash
       run: |
