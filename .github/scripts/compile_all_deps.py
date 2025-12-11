@@ -18,5 +18,9 @@ for target in select_build_targets(DEPS):
         destination = "/data/tmp/ci/dev_preview/" + DEV_BRANCH
     else:
         destination = "/data/tmp/ci"
-    upload(archive_file, "ci@tmp.kiwix.org:30022", destination)
+    # Skip upload for forks that don't have access to tmp.kiwix.org
+    if os.environ.get('GITHUB_REPOSITORY', '').lower() == 'kiwix/kiwix-build':
+        upload(archive_file, "ci@tmp.kiwix.org:30022", destination)
+    else:
+        print_message("Skipping deps upload for fork: {}", os.environ.get('GITHUB_REPOSITORY', 'unknown'))
     os.remove(str(archive_file))
