@@ -21,6 +21,7 @@ $manifestContent = @'
   <Properties>
     <DisplayName>Test App</DisplayName>
     <PublisherDisplayName>Test Publisher</PublisherDisplayName>
+    <Logo>logo.png</Logo>
     <Description>Test application for signing</Description>
   </Properties>
   <Dependencies>
