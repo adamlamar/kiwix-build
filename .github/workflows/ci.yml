@@ -73,20 +73,21 @@ jobs:
       shell: bash
       run: |
         echo "Looking for files in various locations:"
-        echo "runner.temp = ${{ runner.temp }}"
         echo "TEMP = $TEMP"
-        echo "TMP = $TMP"
         echo "Contents of TEMP directory:"
         ls -la "$TEMP"/*kiwix* 2>/dev/null || echo "No kiwix files found in TEMP"
-        echo "Contents of runner.temp directory:"
-        ls -la "${{ runner.temp }}"/*kiwix* 2>/dev/null || echo "No kiwix files found in runner.temp"
+        echo "Contents of RUNNER~1 temp directory:"
+        ls -la "C:/Users/RUNNER~1/AppData/Local/Temp/"*kiwix* 2>/dev/null || echo "No kiwix files found in RUNNER~1 temp"
+        echo "Contents of runneradmin temp directory:"
+        ls -la "C:/Users/runneradmin/AppData/Local/Temp/"*kiwix* 2>/dev/null || echo "No kiwix files found in runneradmin temp"
     - name: Upload MSIX artifact
       if: ${{ matrix.config == 'native_mixed' }}
       uses: actions/upload-artifact@v4
       with:
         name: kiwix-desktop-msix-${{ github.run_number }}
         path: |
-          ${{ env.TEMP }}/kiwix-desktop_windows_x64_*.*
+          C:/Users/RUNNER~1/AppData/Local/Temp/kiwix-desktop_windows_x64_*.*
+          C:/Users/runneradmin/AppData/Local/Temp/kiwix-desktop_windows_x64_*.*
         retention-days: 30
         if-no-files-found: warn
     - name: Upload failure logs
