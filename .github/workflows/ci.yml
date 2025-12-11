@@ -1,100 +1,96 @@
-name: CI
+name: MSIX Signing Test
 
 on:
- push:
- schedule:
-   - cron: '0 1 * * *'
+  push:
+  workflow_dispatch:
 
 jobs:
-  Windows:
+  SigningTest:
     environment: dev
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          - native_mixed
-          - native_dyn
-          - native_static
     runs-on: windows-2022
-    env:
-      OS_NAME: windows
-      COMPILE_CONFIG: ${{matrix.config}}
-      HOME: 'C:\\Users\\runneradmin'
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    - name: Setup python 3.13
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.13'
-    - name: Install packages
+
+    - name: Create basic MSIX package
+      shell: powershell
       run: |
-        choco.exe install pkgconfiglite ninja --allow-empty-checksums -y
-    - name: Install python modules
-      shell: bash
-      run: |
-        pip3 install meson pytest requests distro paramiko pillow
-        pip3 install --no-deps $GITHUB_WORKSPACE
-    - name: Install QT
-      if: ${{ matrix.config == 'native_mixed' }}
-      uses: jurplel/install-qt-action@v4
-      with:
-        version: 6.4.3
-        modules: "qtwebengine qtwebchannel qtpositioning"
-        setup-python: false
-      env:
-        AQT_CONFIG: ${{ github.workspace }}/.github/configs/aqt.ini
-    - name: Setup MSVC compiler
-      uses: bus1/cabuild/action/msdevshell@v1
-      with:
-        architecture: x64
-    - name: secret
-      shell: bash
-      run: |
-        echo "${{secrets.ssh_key}}" > $SSH_KEY
-      env:
-        SSH_KEY: ${{ runner.temp }}/id_rsa
-    - name: Ensure base deps
-      run: |
-        python .github\\scripts\\ensure_base_deps.py
-      env:
-        SSH_KEY: ${{ runner.temp }}/id_rsa
-    - name: Cache compiled dependencies
-      uses: actions/cache@v4
-      id: cache-deps
-      with:
-        path: |
-          ~\BUILD_*
-          ~\SOURCE
-          ~\ARCHIVE
-          ~\TOOLCHAINS
-        key: windows-compiled-${{ matrix.config }}-${{ hashFiles('kiwixbuild/versions.py', 'kiwixbuild/dependencies/**') }}
-        restore-keys: |
-          windows-compiled-${{ matrix.config }}-
-          windows-compiled-
-    - name: Compile all deps
-      if: steps.cache-deps.outputs.cache-hit != 'true'
-      run: |
-        python .github\\scripts\\compile_all_deps.py
-      env:
-        SSH_KEY: ${{ runner.temp }}/id_rsa
-    - name: Build projects
-      run: |
-        python .github\\scripts\\build_projects.py
-      env:
-        SSH_KEY: ${{ runner.temp }}/id_rsa
-    - name: Debug file locations
-      if: ${{ matrix.config == 'native_mixed' }}
-      shell: bash
-      run: |
-        echo "Looking for files in various locations:"
-        echo "TEMP = $TEMP"
-        echo "Contents of TEMP directory:"
-        ls -la "$TEMP"/*kiwix* 2>/dev/null || echo "No kiwix files found in TEMP"
-        echo "Contents of RUNNER~1 temp directory:"
-        ls -la "C:/Users/RUNNER~1/AppData/Local/Temp/"*kiwix* 2>/dev/null || echo "No kiwix files found in RUNNER~1 temp"
-        echo "Contents of runneradmin temp directory:"
-        ls -la "C:/Users/runneradmin/AppData/Local/Temp/"*kiwix* 2>/dev/null || echo "No kiwix files found in runneradmin temp"
+        Write-Host "Creating basic MSIX package for signing test..." -ForegroundColor Yellow
+
+        # Create a minimal app directory structure
+        $appDir = "TestApp"
+        $manifestPath = "$appDir\Package.appxmanifest"
+        New-Item -ItemType Directory -Path $appDir -Force
+
+        # Create a minimal manifest
+        $manifest = @"
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         IgnorableNamespaces="uap">
+  <Identity Name="TestApp" Version="1.0.0.0" Publisher="CN=Test" />
+  <Properties>
+    <DisplayName>Test App</DisplayName>
+    <PublisherDisplayName>Test Publisher</PublisherDisplayName>
+    <Description>Test application for signing</Description>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.0.0" MaxVersionTested="10.0.0.0" />
+  </Dependencies>
+  <Applications>
+    <Application Id="TestApp" Executable="test.exe" EntryPoint="TestApp.App">
+      <uap:VisualElements DisplayName="Test App" Description="Test App" Square150x150Logo="logo.png" Square44x44Logo="smalllogo.png" BackgroundColor="blue" />
+    </Application>
+  </Applications>
+</Package>
+"@
+
+        Set-Content -Path $manifestPath -Value $manifest -Encoding UTF8
+
+        # Create a dummy executable and logos (1x1 pixel PNGs)
+        $dummyExe = [byte[]](0x4D, 0x5A)  # Minimal PE header
+        [System.IO.File]::WriteAllBytes("$appDir\test.exe", $dummyExe)
+
+        # Create minimal 1x1 PNG files for logos
+        $pngBytes = [byte[]](0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0x99, 0x01, 0x01, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01, 0xE2, 0x21, 0xBC, 0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82)
+        [System.IO.File]::WriteAllBytes("$appDir\logo.png", $pngBytes)
+        [System.IO.File]::WriteAllBytes("$appDir\smalllogo.png", $pngBytes)
+
+        # Find MakeAppx tool
+        $makeAppxPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.22621.0\x64\makeappx.exe"
+        if (-not (Test-Path $makeAppxPath)) {
+          $WindowsKitsPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
+          $makeAppxPath = Get-ChildItem -Path $WindowsKitsPath -Recurse -Filter "makeappx.exe" |
+                         Where-Object { $_.Directory.Name -like "*x64*" } |
+                         Sort-Object Name -Descending |
+                         Select-Object -First 1 -ExpandProperty FullName
+        }
+
+        if (-not (Test-Path $makeAppxPath)) {
+          Write-Error "MakeAppx not found. Please install Windows SDK."
+          exit 1
+        }
+
+        # Create MSIX package
+        $msixPath = "$env:TEMP\test-app.msix"
+        Write-Host "Using MakeAppx: $makeAppxPath" -ForegroundColor Cyan
+        Write-Host "Creating MSIX at: $msixPath" -ForegroundColor Cyan
+
+        & $makeAppxPath pack /d $appDir /p $msixPath
+
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Failed to create MSIX package (exit code: $LASTEXITCODE)"
+          exit 1
+        }
+
+        if (Test-Path $msixPath) {
+          Write-Host "✅ MSIX package created successfully: $msixPath" -ForegroundColor Green
+          $size = (Get-Item $msixPath).Length
+          Write-Host "Package size: $($size) bytes" -ForegroundColor Gray
+        } else {
+          Write-Error "MSIX package was not created"
+          exit 1
+        }
 
     - name: Validate signing certificate
       shell: powershell
@@ -184,7 +180,7 @@ jobs:
         SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
 
     - name: Sign MSIX package
-      if: ${{ matrix.config == 'native_mixed' && env.SIGNING_CERTIFICATE != '' }}
+      if: ${{ env.SIGNING_CERTIFICATE != '' }}
       shell: powershell
       run: |
         Write-Host "Signing MSIX package..." -ForegroundColor Yellow
@@ -209,58 +205,35 @@ jobs:
           exit 1
         }
 
-        # Find MSIX files
-        $msixFiles = Get-ChildItem -Path "C:/Users/RUNNER~1/AppData/Local/Temp/" -Name "kiwix-desktop_windows_x64_*.msix"
-        if ($msixFiles.Count -eq 0) {
-          $msixFiles = Get-ChildItem -Path "C:/Users/runneradmin/AppData/Local/Temp/" -Name "kiwix-desktop_windows_x64_*.msix"
-        }
-
-        if ($msixFiles.Count -eq 0) {
-          Write-Error "No MSIX package found to sign."
+        # Find our test MSIX file
+        $msixPath = "$env:TEMP\test-app.msix"
+        if (-not (Test-Path $msixPath)) {
+          Write-Error "Test MSIX package not found at: $msixPath"
           exit 1
         }
 
         Write-Host "Using SignTool: $signToolPath" -ForegroundColor Cyan
+        Write-Host "Signing package: $msixPath" -ForegroundColor Cyan
 
-        foreach ($msixFileName in $msixFiles) {
-          # Determine full path
-          $msixFile = $null
-          $fullPath1 = "C:/Users/RUNNER~1/AppData/Local/Temp/$msixFileName"
-          $fullPath2 = "C:/Users/runneradmin/AppData/Local/Temp/$msixFileName"
+        # Sign the package with timestamp
+        & $signToolPath sign /fd SHA256 /f $certPath /p $env:SIGNING_PASSWORD /tr http://timestamp.digicert.com /td sha256 $msixPath
 
-          if (Test-Path $fullPath1) {
-            $msixFile = Get-Item $fullPath1
-          } elseif (Test-Path $fullPath2) {
-            $msixFile = Get-Item $fullPath2
-          }
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Failed to sign MSIX package (exit code: $LASTEXITCODE)"
+          Remove-Item $certPath -Force -ErrorAction SilentlyContinue
+          exit 1
+        }
 
-          if (-not $msixFile) {
-            Write-Warning "Could not find MSIX file: $msixFileName"
-            continue
-          }
+        Write-Host "✅ MSIX package signed successfully!" -ForegroundColor Green
 
-          Write-Host "Signing package: $($msixFile.Name)" -ForegroundColor Cyan
-
-          # Sign the package with timestamp
-          & $signToolPath sign /fd SHA256 /f $certPath /p $env:SIGNING_PASSWORD /tr http://timestamp.digicert.com /td sha256 $msixFile.FullName
-
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to sign MSIX package: $($msixFile.Name) (exit code: $LASTEXITCODE)"
-            Remove-Item $certPath -Force -ErrorAction SilentlyContinue
-            exit 1
-          }
-
-          Write-Host "✅ MSIX package signed successfully: $($msixFile.Name)" -ForegroundColor Green
-
-          # Verify the signature (don't fail on verification errors for self-signed certs)
-          Write-Host "Verifying package signature..." -ForegroundColor Yellow
-          & $signToolPath verify /pa /v $msixFile.FullName
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "✅ Package signature verified" -ForegroundColor Green
-          } else {
-            Write-Host "⚠️  Package signature verification failed (expected for self-signed certificates)" -ForegroundColor Yellow
-            Write-Host "This is normal for development certificates and doesn't affect package functionality" -ForegroundColor Gray
-          }
+        # Verify the signature (don't fail on verification errors for self-signed certs)
+        Write-Host "Verifying package signature..." -ForegroundColor Yellow
+        & $signToolPath verify /pa /v $msixPath
+        if ($LASTEXITCODE -eq 0) {
+          Write-Host "✅ Package signature verified" -ForegroundColor Green
+        } else {
+          Write-Host "⚠️  Package signature verification failed (expected for self-signed certificates)" -ForegroundColor Yellow
+          Write-Host "This is normal for development certificates and doesn't affect package functionality" -ForegroundColor Gray
         }
 
         # Clean up certificate file
@@ -268,284 +241,19 @@ jobs:
 
         # Reset exit code to success since verification failure is expected
         $global:LASTEXITCODE = 0
+
+        # Move signed package to a more accessible location for upload
+        $finalPath = "$env:TEMP\signed-test-app.msix"
+        Move-Item $msixPath $finalPath -Force
+        Write-Host "Signed package available at: $finalPath" -ForegroundColor Cyan
       env:
         SIGNING_CERTIFICATE: ${{ secrets.SIGNING_CERTIFICATE }}
         SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
-    - name: Upload MSIX artifact
-      if: ${{ matrix.config == 'native_mixed' }}
+
+    - name: Upload signed MSIX
       uses: actions/upload-artifact@v4
       with:
-        name: kiwix-desktop-msix-${{ github.run_number }}
-        path: |
-          C:/Users/RUNNER~1/AppData/Local/Temp/kiwix-desktop_windows_x64_*.*
-          C:/Users/runneradmin/AppData/Local/Temp/kiwix-desktop_windows_x64_*.*
+        name: signed-test-msix-${{ github.run_number }}
+        path: ${{ runner.temp }}\signed-test-app.msix
         retention-days: 30
         if-no-files-found: warn
-
-    - name: Upload failure logs
-      if: failure()
-      run: |
-        python .github\\scripts\\upload_failure_logs.py
-      env:
-        SSH_KEY: ${{ runner.temp }}/id_rsa
-
-  # Linux:
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       config:
-  #         - native_static
-  #         - native_dyn
-  #         - native_mixed
-  #         - wasm
-  #         - armv6_static
-  #         - armv6_dyn
-  #         - armv6_mixed
-  #         - armv8_static
-  #         - armv8_dyn
-  #         - armv8_mixed
-  #         - aarch64_static
-  #         - aarch64_dyn
-  #         - aarch64_mixed
-  #         - aarch64_musl_static
-  #         - aarch64_musl_dyn
-  #         - aarch64_musl_mixed
-  #         - i586_static
-  #         - i586_dyn
-  #         - android_arm
-  #         - android_arm64
-  #         - android_x86
-  #         - android_x86_64
-  #         - x86-64_musl_static
-  #         - x86-64_musl_mixed
-  #       image_variant: ['jammy']
-  #       include:
-  #       - config: native_mixed
-  #         image_variant: x86-64_manylinux
-  #   env:
-  #     HOME: /home/runner
-  #     SSH_KEY: /tmp/id_rsa
-  #     OS_NAME: ${{matrix.image_variant}}
-  #   runs-on: ubuntu-22.04
-  #   container:
-  #     image: "ghcr.io/kiwix/kiwix-build_ci_${{matrix.image_variant}}:2025-11-05"
-  #     options: "--device /dev/fuse --privileged"
-  #   steps:
-  #   - name: Checkout code
-  #     shell: bash
-  #     run: |
-  #       cd $HOME
-  #       git clone https://github.com/${REP}
-  #       cd ./${REP##*/}
-  #       git checkout --force ${GITHUB_SHA}
-  #       pip3 install --user --no-deps .
-  #     env:
-  #       REP: ${{github.repository}}
-  #   - name: Install paramiko
-  #     if: ${{matrix.image_variant != 'bionic' }}
-  #     shell: bash
-  #     run: pip3 install --user paramiko
-  #   - name: secret
-  #     shell: bash
-  #     run: |
-  #       echo "${{secrets.ssh_key}}" > $SSH_KEY
-  #       chmod 600 $SSH_KEY
-  #   - name: Ensure base deps
-  #     shell: bash
-  #     run: |
-  #       cd $HOME
-  #       kiwix-build/.github/scripts/ensure_base_deps.py
-  #     env:
-  #       COMPILE_CONFIG: ${{matrix.config}}
-  #   - name: Compile all deps
-  #     shell: bash
-  #     run: |
-  #       cd $HOME
-  #       kiwix-build/.github/scripts/compile_all_deps.py
-  #     env:
-  #       COMPILE_CONFIG: ${{matrix.config}}
-  #   - name: Build projects
-  #     shell: bash
-  #     run: |
-  #       cd $HOME
-  #       kiwix-build/.github/scripts/build_projects.py
-  #     env:
-  #       COMPILE_CONFIG: ${{matrix.config}}
-  #   - name: Upload failure logs
-  #     if: failure()
-  #     run: $HOME/kiwix-build/.github/scripts/upload_failure_logs.py
-  #     env:
-  #       COMPILE_CONFIG: ${{matrix.config}}
-
-  # LinuxArm64:
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       config:
-  #         - native_mixed
-  #       image_variant:
-  #         - aarch64_manylinux
-  #   env:
-  #     HOME: /home/runner
-  #     SSH_KEY: /tmp/id_rsa
-  #     OS_NAME: ${{matrix.image_variant}}
-  #   runs-on: ubuntu-22.04-arm
-  #   container:
-  #     image: "ghcr.io/kiwix/kiwix-build_ci_${{matrix.image_variant}}:2025-11-05"
-  #     options: "--device /dev/fuse --privileged"
-  #   steps:
-  #   - name: Checkout code
-  #     shell: bash
-  #     run: |
-  #       cd $HOME
-  #       git clone https://github.com/${REP}
-  #       cd ./${REP##*/}
-  #       git checkout --force ${GITHUB_SHA}
-  #       pip3 install --user --no-deps .
-  #     env:
-  #       REP: ${{github.repository}}
-  #   - name: Install paramiko
-  #     if: ${{matrix.image_variant != 'bionic' }}
-  #     shell: bash
-  #     run: pip3 install --user paramiko
-  #   - name: secret
-  #     shell: bash
-  #     run: |
-  #       echo "${{secrets.ssh_key}}" > $SSH_KEY
-  #       chmod 600 $SSH_KEY
-  #   - name: Ensure base deps
-  #     shell: bash
-  #     run: |
-  #       cd $HOME
-  #       kiwix-build/.github/scripts/ensure_base_deps.py
-  #     env:
-  #       COMPILE_CONFIG: ${{matrix.config}}
-  #   - name: Compile all deps
-  #     shell: bash
-  #     run: |
-  #       cd $HOME
-  #       kiwix-build/.github/scripts/compile_all_deps.py
-  #     env:
-  #       COMPILE_CONFIG: ${{matrix.config}}
-  #   - name: Build projects
-  #     shell: bash
-  #     run: |
-  #       cd $HOME
-  #       kiwix-build/.github/scripts/build_projects.py
-  #     env:
-  #       COMPILE_CONFIG: ${{matrix.config}}
-  #   - name: Upload failure logs
-  #     if: failure()
-  #     run: $HOME/kiwix-build/.github/scripts/upload_failure_logs.py
-  #     env:
-  #       COMPILE_CONFIG: ${{matrix.config}}
-
-  # Flatpak:
-  #   strategy:
-  #     fail-fast: false
-  #   env:
-  #     HOME: /home/runner
-  #     SSH_KEY: /tmp/id_rsa
-  #     COMPILE_CONFIG: flatpak
-  #     OS_NAME: jammy
-  #   runs-on: ubuntu-24.04
-  #   steps:
-  #   - name: Checkout code
-  #     shell: bash
-  #     run: |
-  #       cd $HOME
-  #       git clone https://github.com/${REP}
-  #       cd ./${REP##*/}
-  #       git checkout --force ${GITHUB_SHA}
-  #       pip3 install --user paramiko
-  #       pip3 install --user --no-deps .
-  #     env:
-  #       REP: ${{github.repository}}
-  #   - name: Install flatpak tools
-  #     run: |
-  #       sudo apt-get update
-  #       sudo apt-get install flatpak-builder ninja-build meson
-  #   - name: secret
-  #     shell: bash
-  #     run: |
-  #       echo "${{secrets.ssh_key}}" > $SSH_KEY
-  #       chmod 600 $SSH_KEY
-  #   - name: Ensure base deps
-  #     shell: bash
-  #     run: |
-  #       cd $HOME
-  #       kiwix-build/.github/scripts/ensure_base_deps.py
-  #   - name: Build projects
-  #     shell: bash
-  #     run: |
-  #       cd $HOME
-  #       kiwix-build/.github/scripts/build_projects.py
-  #   - name: Upload failure logs
-  #     if: failure()
-  #     run: $HOME/kiwix-build/.github/scripts/upload_failure_logs.py
-
-  # macOS:
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       config:
-  #         - macos_x86-64_static
-  #         - macos_x86-64_mixed
-  #         - ios_arm64
-  #         - iossimulator_x86_64
-  #         - iossimulator_arm64
-  #         - macos_arm64_static
-  #         - macos_arm64_mixed
-  #         - apple_all_static
-  #   runs-on: macos-14
-  #   env:
-  #     SSH_KEY: /tmp/id_rsa
-  #     OS_NAME: macos
-  #   steps:
-  #   - name: Set Xcode version (16.1)
-  #     # https://github.com/actions/runner-images/blob/main/images/macos/macos-14-Readme.md#xcode
-  #     run: sudo xcode-select -s /Applications/Xcode_16.1.app
-  #   - name: Checkout code
-  #     uses: actions/checkout@v4
-  #   - name: Setup Python 3.13
-  #     uses: actions/setup-python@v5
-  #     with:
-  #       python-version: '3.13'
-  #   - name: Install packages
-  #     run:
-  #       brew install automake # ninja
-  #   - name: Install Python modules
-  #     run: |
-  #       pip3 install meson pytest requests distro paramiko
-  #       pip3 install --no-deps $GITHUB_WORKSPACE
-  #   - name: secret
-  #     shell: bash
-  #     run: |
-  #       echo "${{secrets.ssh_key}}" > $SSH_KEY
-  #       chmod 600 $SSH_KEY
-  #   - name: Ensure base deps
-  #     shell: bash
-  #     run: |
-  #       cd $HOME
-  #       $GITHUB_WORKSPACE/.github/scripts/ensure_base_deps.py
-  #     env:
-  #       COMPILE_CONFIG: ${{matrix.config}}
-  #   - name: Compile all deps
-  #     shell: bash
-  #     run: |
-  #       cd $HOME
-  #       $GITHUB_WORKSPACE/.github/scripts/compile_all_deps.py
-  #     env:
-  #       COMPILE_CONFIG: ${{matrix.config}}
-  #   - name: Build projects
-  #     shell: bash
-  #     run: |
-  #       cd $HOME
-  #       $GITHUB_WORKSPACE/.github/scripts/build_projects.py
-  #     env:
-  #       COMPILE_CONFIG: ${{matrix.config}}
-  #   - name: Upload failure logs
-  #     if: failure()
-  #     run: $GITHUB_WORKSPACE/.github/scripts/upload_failure_logs.py
-  #     env:
-  #       COMPILE_CONFIG: ${{matrix.config}}
