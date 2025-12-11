@@ -11,10 +11,31 @@ Write-Host "Creating basic MSIX package for signing test..." -ForegroundColor Ye
 $appDir = "TestApp"
 New-Item -ItemType Directory -Path $appDir -Force
 
-# Copy manifest from the repository
-$manifestSource = "$PSScriptRoot\..\test-files\AppxManifest.xml"
+# Create manifest content inline
+$manifestContent = @'
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         IgnorableNamespaces="uap">
+  <Identity Name="TestApp" Version="1.0.0.0" Publisher="CN=Test" />
+  <Properties>
+    <DisplayName>Test App</DisplayName>
+    <PublisherDisplayName>Test Publisher</PublisherDisplayName>
+    <Description>Test application for signing</Description>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.0.0" MaxVersionTested="10.0.0.0" />
+  </Dependencies>
+  <Applications>
+    <Application Id="TestApp" Executable="test.exe" EntryPoint="TestApp.App">
+      <uap:VisualElements DisplayName="Test App" Description="Test App" Square150x150Logo="logo.png" Square44x44Logo="smalllogo.png" BackgroundColor="blue" />
+    </Application>
+  </Applications>
+</Package>
+'@
+
 $manifestDest = "$appDir\AppxManifest.xml"
-Copy-Item $manifestSource $manifestDest
+Set-Content -Path $manifestDest -Value $manifestContent -Encoding UTF8
 
 # Create a dummy executable (minimal PE header)
 $dummyExe = [byte[]](0x4D, 0x5A)  # MZ header
