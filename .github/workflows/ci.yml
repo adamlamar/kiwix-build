@@ -61,6 +61,7 @@ jobs:
         SSH_KEY: ${{ runner.temp }}/id_rsa
     - name: Cache compiled dependencies
       uses: actions/cache@v4
+      id: cache-deps
       with:
         path: |
           ~\BUILD_*
@@ -72,6 +73,7 @@ jobs:
           windows-compiled-${{ matrix.config }}-
           windows-compiled-
     - name: Compile all deps
+      if: steps.cache-deps.outputs.cache-hit != 'true'
       run: |
         python .github\\scripts\\compile_all_deps.py
       env:
