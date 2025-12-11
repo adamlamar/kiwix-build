@@ -59,6 +59,18 @@ jobs:
         python .github\\scripts\\ensure_base_deps.py
       env:
         SSH_KEY: ${{ runner.temp }}/id_rsa
+    - name: Cache compiled dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~\BUILD_*
+          ~\SOURCE
+          ~\ARCHIVE
+          ~\TOOLCHAINS
+        key: windows-compiled-${{ matrix.config }}-${{ hashFiles('kiwixbuild/versions.py', 'kiwixbuild/dependencies/**') }}
+        restore-keys: |
+          windows-compiled-${{ matrix.config }}-
+          windows-compiled-
     - name: Compile all deps
       run: |
         python .github\\scripts\\compile_all_deps.py
