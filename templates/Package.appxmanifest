@@ -12,8 +12,6 @@
     <PublisherDisplayName>Kiwix</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <Description>Kiwix Desktop - Offline Wikipedia and Educational Content Reader</Description>
-    <PackageIntegrityLevel>mediumIL</PackageIntegrityLevel>
-    <PackageIntegrityLevelDeclaration>mediumIL</PackageIntegrityLevelDeclaration>
   </Properties>
 
   <Dependencies>
