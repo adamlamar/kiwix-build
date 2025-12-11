@@ -24,6 +24,9 @@ $manifestContent = @'
     <Logo>logo.png</Logo>
     <Description>Test application for signing</Description>
   </Properties>
+  <Resources>
+    <Resource Language="en-US" />
+  </Resources>
   <Dependencies>
     <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.0.0" MaxVersionTested="10.0.0.0" />
   </Dependencies>
