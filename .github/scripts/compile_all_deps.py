@@ -6,6 +6,7 @@ from common import (
     run_kiwix_build,
     make_deps_archive,
     upload,
+    print_message,
     COMPILE_CONFIG,
     DEV_BRANCH,
 )
