@@ -115,6 +115,7 @@ def create_msix_package(package_dir, output_path):
     """Create the MSIX package using makeappx.exe"""
     # Try to find makeappx.exe in Windows SDK
     sdk_paths = [
+        "C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64/makeappx.exe",
         "C:/Program Files (x86)/Windows Kits/10/bin/10.0.22621.0/x64/makeappx.exe",
         "C:/Program Files (x86)/Windows Kits/10/bin/10.0.19041.0/x64/makeappx.exe",
         "C:/Program Files (x86)/Windows Kits/10/bin/10.0.18362.0/x64/makeappx.exe",
@@ -230,14 +231,28 @@ def main():
         possible_paths = [
             Path.cwd() / 'templates' / 'Package.appxmanifest',  # Current working directory
             Path(__file__).parent.parent / 'templates' / 'Package.appxmanifest',  # Relative to script
-            Path(os.environ.get('GITHUB_WORKSPACE', '.')) / 'templates' / 'Package.appxmanifest'  # GitHub workspace
+            Path(os.environ.get('GITHUB_WORKSPACE', '.')) / 'templates' / 'Package.appxmanifest',  # GitHub workspace
+            # Additional fallbacks for different environments
+            Path(__file__).parent / '..' / 'templates' / 'Package.appxmanifest',  # Another relative path
+            Path(os.path.dirname(os.path.abspath(__file__))) / '..' / 'templates' / 'Package.appxmanifest',  # Absolute script dir
+            # Try searching from repository root
+            Path(os.environ.get('GITHUB_WORKSPACE', '')) / 'templates' / 'Package.appxmanifest' if os.environ.get('GITHUB_WORKSPACE') else None
         ]
+
+        # Filter out None entries
+        possible_paths = [p for p in possible_paths if p is not None]
 
         template_path = None
         for path in possible_paths:
-            if path.exists():
-                template_path = path
-                break
+            try:
+                # Resolve the path to handle '..' correctly
+                resolved_path = path.resolve()
+                if resolved_path.exists():
+                    template_path = resolved_path
+                    break
+            except (OSError, RuntimeError):
+                # Skip paths that can't be resolved
+                continue
 
         if template_path is None:
             raise Exception(f"Manifest template not found. Tried: {[str(p) for p in possible_paths]}")
@@ -248,8 +263,11 @@ def main():
     print(f"Creating MSIX package for Kiwix Desktop")
     print(f"Source directory: {source_dir}")
     print(f"Template path: {template_path}")
+    print(f"Template exists: {template_path.exists() if template_path else 'No template path'}")
     print(f"Output path: {output_path}")
     print(f"Version: {args.version}")
+    print(f"Current working directory: {Path.cwd()}")
+    print(f"Script directory: {Path(__file__).parent}")
 
     # Create temporary directory for package construction
     with tempfile.TemporaryDirectory() as temp_dir:
