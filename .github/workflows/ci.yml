@@ -68,6 +68,16 @@ jobs:
         python .github\\scripts\\build_projects.py
       env:
         SSH_KEY: ${{ runner.temp }}/id_rsa
+    - name: Upload MSIX artifact
+      if: ${{ matrix.config == 'native_mixed' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: kiwix-desktop-msix-${{ github.run_number }}
+        path: |
+          ${{ runner.temp }}/kiwix-desktop_windows_x64_*.msix
+          ${{ runner.temp }}/kiwix-desktop_windows_x64_*.zip
+        retention-days: 30
+        if-no-files-found: warn
     - name: Upload failure logs
       if: failure()
       run: |

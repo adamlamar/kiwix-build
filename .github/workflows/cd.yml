@@ -116,6 +116,11 @@ jobs:
           ${{ runner.temp }}/kiwix-desktop_windows_x64_*.*
         retention-days: 30
         if-no-files-found: warn
+    - name: Build projects
+      run: |
+        python .github\\scripts\\build_projects.py
+      env:
+        SSH_KEY: ${{ runner.temp }}/id_rsa
     - name: Upload failure logs
       if: failure()
       run: |
