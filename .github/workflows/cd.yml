@@ -101,19 +101,17 @@ jobs:
       if: matrix.config == 'native_mixed'
       shell: bash
       run: |
-        echo "Contents of temp directory:"
-        ls -la ${{ runner.temp }}/kiwix-desktop_windows_x64_* || echo "No files found in runner.temp"
         echo "Contents of TEMP directory:"
-        ls -la $TEMP/kiwix-desktop_windows_x64_* || echo "No files found in TEMP"
-        echo "Looking for .msix files:"
-        find ${{ runner.temp }} -name "*.msix" -o -name "*.zip" | grep kiwix || echo "No kiwix files found"
+        ls -la $TEMP/*kiwix* || echo "No kiwix files found in TEMP"
+        echo "Contents of runner.temp directory:"
+        ls -la ${{ runner.temp }}/*kiwix* || echo "No kiwix files found in runner.temp"
     - name: Upload Windows Artifacts
       if: matrix.config == 'native_mixed'
       uses: actions/upload-artifact@v4
       with:
         name: kiwix-desktop-windows-${{ matrix.config }}
         path: |
-          ${{ runner.temp }}/kiwix-desktop_windows_x64_*.*
+          ${{ env.TEMP }}/kiwix-desktop_windows_x64_*.*
         retention-days: 30
         if-no-files-found: warn
     - name: Build projects

@@ -68,14 +68,25 @@ jobs:
         python .github\\scripts\\build_projects.py
       env:
         SSH_KEY: ${{ runner.temp }}/id_rsa
+    - name: Debug file locations
+      if: ${{ matrix.config == 'native_mixed' }}
+      shell: bash
+      run: |
+        echo "Looking for files in various locations:"
+        echo "runner.temp = ${{ runner.temp }}"
+        echo "TEMP = $TEMP"
+        echo "TMP = $TMP"
+        echo "Contents of TEMP directory:"
+        ls -la "$TEMP"/*kiwix* 2>/dev/null || echo "No kiwix files found in TEMP"
+        echo "Contents of runner.temp directory:"
+        ls -la "${{ runner.temp }}"/*kiwix* 2>/dev/null || echo "No kiwix files found in runner.temp"
     - name: Upload MSIX artifact
       if: ${{ matrix.config == 'native_mixed' }}
       uses: actions/upload-artifact@v4
       with:
         name: kiwix-desktop-msix-${{ github.run_number }}
         path: |
-          ${{ runner.temp }}/kiwix-desktop_windows_x64_*.msix
-          ${{ runner.temp }}/kiwix-desktop_windows_x64_*.zip
+          ${{ env.TEMP }}/kiwix-desktop_windows_x64_*.*
         retention-days: 30
         if-no-files-found: warn
     - name: Upload failure logs
