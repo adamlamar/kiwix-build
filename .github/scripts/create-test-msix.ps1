@@ -12,7 +12,7 @@ $appDir = "TestApp"
 New-Item -ItemType Directory -Path $appDir -Force
 
 # Copy manifest from the repository
-$manifestSource = "$PSScriptRoot\test-files\Package.appxmanifest"
+$manifestSource = "$PSScriptRoot\..\test-files\Package.appxmanifest"
 $manifestDest = "$appDir\Package.appxmanifest"
 Copy-Item $manifestSource $manifestDest
 
