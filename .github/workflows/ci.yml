@@ -81,16 +81,33 @@ jobs:
         ls -la "C:/Users/RUNNER~1/AppData/Local/Temp/"*kiwix* 2>/dev/null || echo "No kiwix files found in RUNNER~1 temp"
         echo "Contents of runneradmin temp directory:"
         ls -la "C:/Users/runneradmin/AppData/Local/Temp/"*kiwix* 2>/dev/null || echo "No kiwix files found in runneradmin temp"
-    - name: Upload MSIX artifact
-      if: ${{ matrix.config == 'native_mixed' }}
-      uses: actions/upload-artifact@v4
-      with:
-        name: kiwix-desktop-msix-${{ github.run_number }}
-        path: |
-          C:/Users/RUNNER~1/AppData/Local/Temp/kiwix-desktop_windows_x64_*.*
-          C:/Users/runneradmin/AppData/Local/Temp/kiwix-desktop_windows_x64_*.*
-        retention-days: 30
-        if-no-files-found: warn
+
+    - name: Validate signing certificate
+      shell: powershell
+      run: |
+        if (-not $env:SIGNING_CERTIFICATE -or -not $env:SIGNING_PASSWORD) {
+          Write-Host "❌ MSIX signing requires a certificate!" -ForegroundColor Red
+          Write-Host ""
+          Write-Host "To fix this, add these secrets to your GitHub repository:" -ForegroundColor Yellow
+          Write-Host "  SIGNING_CERTIFICATE - Base64 encoded .pfx certificate file" -ForegroundColor Gray
+          Write-Host "  SIGNING_PASSWORD - Certificate password" -ForegroundColor Gray
+          Write-Host ""
+          Write-Host "For development/testing, create a self-signed certificate:" -ForegroundColor Yellow
+          Write-Host "  1. Run: .\scripts\create-dev-cert.ps1" -ForegroundColor Gray
+          Write-Host "  2. Convert to base64: [Convert]::ToBase64String([IO.File]::ReadAllBytes('cert.pfx'))" -ForegroundColor Gray
+          Write-Host "  3. Add the base64 string to SIGNING_CERTIFICATE secret" -ForegroundColor Gray
+          Write-Host "  4. Add the password to SIGNING_PASSWORD secret" -ForegroundColor Gray
+          Write-Host ""
+          Write-Host "For production, purchase a code signing certificate from a trusted CA." -ForegroundColor Yellow
+          Write-Error "Missing required signing certificate secrets"
+          exit 1
+        }
+
+        Write-Host "✅ Signing certificate secrets are available" -ForegroundColor Green
+      env:
+        SIGNING_CERTIFICATE: ${{ secrets.SIGNING_CERTIFICATE }}
+        SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+
     - name: Sign MSIX package
       if: ${{ matrix.config == 'native_mixed' && env.SIGNING_CERTIFICATE != '' }}
       shell: powershell
@@ -103,7 +120,7 @@ jobs:
         [IO.File]::WriteAllBytes($certPath, $certBytes)
 
         # Find SignTool
-        $signToolPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe"
+        $signToolPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe"
         if (-not (Test-Path $signToolPath)) {
           $WindowsKitsPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
           $signToolPath = Get-ChildItem -Path $WindowsKitsPath -Recurse -Filter "signtool.exe" |
@@ -179,6 +196,17 @@ jobs:
       env:
         SIGNING_CERTIFICATE: ${{ secrets.SIGNING_CERTIFICATE }}
         SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+    - name: Upload MSIX artifact
+      if: ${{ matrix.config == 'native_mixed' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: kiwix-desktop-msix-${{ github.run_number }}
+        path: |
+          C:/Users/RUNNER~1/AppData/Local/Temp/kiwix-desktop_windows_x64_*.*
+          C:/Users/runneradmin/AppData/Local/Temp/kiwix-desktop_windows_x64_*.*
+        retention-days: 30
+        if-no-files-found: warn
+
     - name: Upload failure logs
       if: failure()
       run: |
