@@ -9,6 +9,7 @@ on:
 
 jobs:
   Windows:
+    environment: dev
     strategy:
       fail-fast: false
       matrix:
@@ -117,6 +118,38 @@ jobs:
           C:/Users/runneradmin/AppData/Local/Temp/kiwix-desktop_windows_x64_*.*
         retention-days: 30
         if-no-files-found: warn
+    - name: Setup certificate for MSIX signing
+      if: ${{ matrix.config == 'native_mixed' && env.SIGNING_CERTIFICATE != '' }}
+      shell: pwsh
+      run: |
+        $certBytes = [Convert]::FromBase64String($env:SIGNING_CERTIFICATE)
+        $certPath = "$env:TEMP\signing-cert.pfx"
+        [IO.File]::WriteAllBytes($certPath, $certBytes)
+        echo "CERT_PATH=$certPath" >> $env:GITHUB_ENV
+      env:
+        SIGNING_CERTIFICATE: ${{ secrets.SIGNING_CERTIFICATE }}
+    - name: Sign MSIX package
+      if: ${{ matrix.config == 'native_mixed' && env.SIGNING_CERTIFICATE != '' }}
+      shell: pwsh
+      run: |
+        $msixFiles = Get-ChildItem -Path "C:/Users/RUNNER~1/AppData/Local/Temp/" -Name "kiwix-desktop_windows_x64_*.msix"
+        if ($msixFiles.Count -gt 0) {
+          foreach ($msixFile in $msixFiles) {
+            $fullPath = "C:/Users/RUNNER~1/AppData/Local/Temp/$msixFile"
+            Write-Host "Signing MSIX: $fullPath"
+            & "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe" sign /fd sha256 /f $env:CERT_PATH /p $env:SIGNING_PASSWORD $fullPath
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "Successfully signed: $msixFile" -ForegroundColor Green
+            } else {
+              Write-Host "Failed to sign: $msixFile" -ForegroundColor Red
+            }
+          }
+        } else {
+          Write-Host "No MSIX files found to sign" -ForegroundColor Yellow
+        }
+      env:
+        SIGNING_CERTIFICATE: ${{ secrets.SIGNING_CERTIFICATE }}
+        SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
     - name: Build projects
       run: |
         python .github\\scripts\\build_projects.py
