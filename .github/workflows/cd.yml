@@ -113,7 +113,7 @@ jobs:
       with:
         name: kiwix-desktop-windows-${{ matrix.config }}
         path: |
-          ${{ env.TEMP }}/kiwix-desktop_windows_x64_*.*
+          ${{ runner.temp }}/kiwix-desktop_windows_x64_*.*
         retention-days: 30
         if-no-files-found: warn
     - name: Upload failure logs

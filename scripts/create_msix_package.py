@@ -226,17 +226,28 @@ def main():
     if args.template:
         template_path = Path(args.template)
     else:
-        script_dir = Path(__file__).parent.parent  # Go up from scripts/
-        template_path = script_dir / 'templates' / 'Package.appxmanifest'
+        # Try multiple possible locations for the template
+        possible_paths = [
+            Path.cwd() / 'templates' / 'Package.appxmanifest',  # Current working directory
+            Path(__file__).parent.parent / 'templates' / 'Package.appxmanifest',  # Relative to script
+            Path(os.environ.get('GITHUB_WORKSPACE', '.')) / 'templates' / 'Package.appxmanifest'  # GitHub workspace
+        ]
+
+        template_path = None
+        for path in possible_paths:
+            if path.exists():
+                template_path = path
+                break
+
+        if template_path is None:
+            raise Exception(f"Manifest template not found. Tried: {[str(p) for p in possible_paths]}")
 
     if not source_dir.exists():
         raise Exception(f"Source directory not found: {source_dir}")
 
-    if not template_path.exists():
-        raise Exception(f"Manifest template not found: {template_path}")
-
     print(f"Creating MSIX package for Kiwix Desktop")
     print(f"Source directory: {source_dir}")
+    print(f"Template path: {template_path}")
     print(f"Output path: {output_path}")
     print(f"Version: {args.version}")
 
