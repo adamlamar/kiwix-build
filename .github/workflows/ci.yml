@@ -41,12 +41,38 @@ jobs:
         version: 6.4.3
         modules: "qtwebengine qtwebchannel qtpositioning"
         setup-python: false
+        cache: true
+        cache-key-prefix: qt-6.4.3-win64
       env:
         AQT_CONFIG: ${{ github.workspace }}/.github/configs/aqt.ini
     - name: Setup MSVC compiler
       uses: bus1/cabuild/action/msdevshell@v1
       with:
         architecture: x64
+    - name: Create cache key files
+      shell: bash
+      run: |
+        # Create a file containing dependency versions for cache key
+        echo "Config: ${{ matrix.config }}" > cache-key.txt
+        echo "Base deps meta version:" >> cache-key.txt
+        grep "base_deps_meta_version" kiwixbuild/versions.py >> cache-key.txt
+        echo "Base deps versions:" >> cache-key.txt
+        grep -A 20 "base_deps_versions = {" kiwixbuild/versions.py >> cache-key.txt
+        echo "Main project versions:" >> cache-key.txt
+        grep -A 10 "main_project_versions = {" kiwixbuild/versions.py >> cache-key.txt
+        cat cache-key.txt
+    - name: Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          C:\Users\runneradmin\BUILD_win-amd64\INSTALL
+          C:\Users\runneradmin\BUILD_win-amd64\TOOLCHAINS
+          C:\Users\runneradmin\BUILD_neutral\INSTALL
+          C:\Users\runneradmin\BUILD_neutral\TOOLCHAINS
+        key: deps-windows-${{ matrix.config }}-${{ hashFiles('cache-key.txt', 'kiwixbuild/versions.py') }}
+        restore-keys: |
+          deps-windows-${{ matrix.config }}-
+          deps-windows-
     - name: secret
       shell: bash
       run: |

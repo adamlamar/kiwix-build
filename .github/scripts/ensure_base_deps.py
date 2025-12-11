@@ -48,6 +48,14 @@ def get_archive_name():
 
 def main():
     base_dep_archive_name = get_archive_name()
+    print_message("archive_name is {}", base_dep_archive_name)
+
+    # Check if dependencies are already built and cached
+    install_dir = HOME / "BUILD_win-amd64" / "INSTALL"
+    if install_dir.exists() and (install_dir / "bin").exists():
+        print_message("Dependencies already cached and built, skipping download/build")
+        return
+
     print_message("Getting archive {}", base_dep_archive_name)
     try:
         local_filename = download_base_archive(base_dep_archive_name)

@@ -7,10 +7,18 @@ from common import (
     make_deps_archive,
     upload,
     print_message,
+    HOME,
     COMPILE_CONFIG,
     DEV_BRANCH,
 )
 from build_definition import select_build_targets, DEPS
+from common import HOME
+
+# Check if dependencies are already built and cached
+install_dir = HOME / "BUILD_win-amd64" / "INSTALL"
+if install_dir.exists() and (install_dir / "bin").exists():
+    print_message("Dependencies already cached and built, skipping compilation")
+    exit(0)
 
 for target in select_build_targets(DEPS):
     run_kiwix_build(target, config=COMPILE_CONFIG, build_deps_only=True)
