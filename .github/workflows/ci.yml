@@ -15,7 +15,9 @@ jobs:
     - name: Create basic MSIX package
       shell: powershell
       run: |
-        & .\.github\scripts\create-test-msix.ps1    - name: Validate signing certificate
+        & .\.github\scripts\create-test-msix.ps1
+
+    - name: Validate signing certificate
       shell: powershell
       run: |
         if (-not $env:SIGNING_CERTIFICATE -or -not $env:SIGNING_PASSWORD) {
