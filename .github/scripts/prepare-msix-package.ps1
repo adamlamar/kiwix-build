@@ -16,10 +16,15 @@ Write-Host "Copying application files..." -ForegroundColor Cyan
 
 # Use robocopy for reliable directory copying
 $robocopyResult = robocopy $ExtractedPath $PackageDir /E /NFL /NDL /NJH /NJS /nc /ns /np
-if ($LASTEXITCODE -gt 7) {
-    Write-Error "Failed to copy files from $ExtractedPath to $PackageDir"
+$robocopyExitCode = $LASTEXITCODE
+
+if ($robocopyExitCode -gt 7) {
+    Write-Error "Failed to copy files from $ExtractedPath to $PackageDir (exit code: $robocopyExitCode)"
     exit 1
 }
+
+# Reset exit code after successful robocopy (robocopy returns non-zero for success)
+$global:LASTEXITCODE = 0
 
 Write-Host "✅ Application files copied successfully" -ForegroundColor Green
 
@@ -57,3 +62,6 @@ $pngBytes = [byte[]](0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00,
 }
 
 Write-Host "✅ MSIX package structure prepared" -ForegroundColor Green
+
+# Ensure script exits with success code
+exit 0
