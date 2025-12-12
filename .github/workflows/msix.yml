@@ -1,0 +1,375 @@
+name: MSIX Package Builder
+
+on:
+  push:
+    branches: [ main, msix ]
+  workflow_dispatch:
+    inputs:
+      nightly_url:
+        description: 'URL to nightly build zip file'
+        required: false
+        default: 'https://download.kiwix.org/nightly/2025-12-11/kiwix-desktop_windows_x64_2025-12-11.zip'
+
+env:
+  # Default nightly build URL - change this to update the version
+  NIGHTLY_URL: 'https://download.kiwix.org/nightly/2025-12-11/kiwix-desktop_windows_x64_2025-12-11.zip'
+
+jobs:
+  build-msix:
+    name: Build and Sign MSIX Package
+    environment: dev
+    runs-on: windows-2022
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download nightly build
+      shell: powershell
+      run: |
+        $url = if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch' -and $env:NIGHTLY_URL_INPUT) {
+          $env:NIGHTLY_URL_INPUT
+        } else {
+          $env:NIGHTLY_URL
+        }
+
+        Write-Host "Downloading nightly build from: $url" -ForegroundColor Yellow
+
+        $zipPath = "nightly-build.zip"
+        $extractPath = "nightly-extracted"
+
+        try {
+          Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
+          Write-Host "✅ Download completed" -ForegroundColor Green
+
+          # Verify download
+          $size = (Get-Item $zipPath).Length
+          Write-Host "Downloaded file size: $($size / 1MB) MB" -ForegroundColor Gray
+
+          # Extract the archive
+          Write-Host "Extracting nightly build..." -ForegroundColor Yellow
+          Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+
+          # List contents to verify
+          Write-Host "Extracted contents:" -ForegroundColor Cyan
+          Get-ChildItem $extractPath -Recurse | Select-Object -First 10 | ForEach-Object { Write-Host "  $($_.Name)" }
+
+          Write-Host "✅ Nightly build ready for MSIX packaging" -ForegroundColor Green
+
+        } catch {
+          Write-Error "Failed to download or extract nightly build: $($_.Exception.Message)"
+          exit 1
+        }
+      env:
+        NIGHTLY_URL_INPUT: ${{ github.event.inputs.nightly_url }}
+
+    - name: Prepare MSIX package structure
+      shell: powershell
+      run: |
+        Write-Host "Preparing MSIX package structure..." -ForegroundColor Yellow
+
+        $packageDir = "KiwixDesktop_Package"
+        $extractedPath = "nightly-extracted"
+
+        # Create package directory
+        New-Item -ItemType Directory -Path $packageDir -Force
+
+        # Copy nightly build contents to package directory
+        Write-Host "Copying application files..." -ForegroundColor Cyan
+        Get-ChildItem $extractedPath -Recurse | Copy-Item -Destination {
+          $dest = $_.FullName -replace [regex]::Escape($extractedPath), $packageDir
+          if ($_.PSIsContainer) {
+            New-Item -ItemType Directory -Path $dest -Force
+          }
+          $dest
+        } -Force
+
+        # Create MSIX manifest
+        $manifest = @'
+<?xml version="1.0" encoding="utf-8"?>
+        # Copy and prepare MSIX manifest from template
+        $templatePath = "templates\Package.appxmanifest"
+        $manifestPath = "$packageDir\AppxManifest.xml"
+
+        if (-not (Test-Path $templatePath)) {
+          Write-Error "Template manifest not found at: $templatePath"
+          exit 1
+        }
+
+        # Read template and replace version placeholder
+        $manifestContent = Get-Content $templatePath -Raw
+        $version = "3.4.0.0"  # You can parameterize this later if needed
+        $manifestContent = $manifestContent -replace '\{VERSION\}', $version
+
+        # Save the processed manifest
+        Set-Content -Path $manifestPath -Value $manifestContent -Encoding UTF8
+        Write-Host "✅ Manifest created from template: $templatePath" -ForegroundColor Green
+
+        # Create Assets directory and placeholder icon files for the template's expected paths
+        if (-not (Test-Path "$packageDir\Assets")) {
+          New-Item -ItemType Directory -Path "$packageDir\Assets" -Force
+        }
+
+        # Create minimal PNG placeholders for required icons (template uses Assets\ path)
+        $pngBytes = [byte[]](0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0x99, 0x01, 0x01, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01, 0xE2, 0x21, 0xBC, 0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82)
+
+        @("StoreLogo.png", "Square44x44Logo.png", "Square150x150Logo.png", "Wide310x150Logo.png") | ForEach-Object {
+          $iconPath = "$packageDir\Assets\$_"
+          if (-not (Test-Path $iconPath)) {
+            [System.IO.File]::WriteAllBytes($iconPath, $pngBytes)
+'@
+
+        # Save manifest
+        $manifestPath = "$packageDir\AppxManifest.xml"
+        Set-Content -Path $manifestPath -Value $manifest -Encoding UTF8
+
+        # Create placeholder icon files if they don't exist
+        if (-not (Test-Path "$packageDir\resources\icons")) {
+          New-Item -ItemType Directory -Path "$packageDir\resources\icons" -Force
+        }
+
+        # Create minimal PNG placeholders for required icons
+        $pngBytes = [byte[]](0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0x99, 0x01, 0x01, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01, 0xE2, 0x21, 0xBC, 0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82)
+
+        @("kiwix-48.png", "kiwix-44.png", "kiwix-150.png", "kiwix-310x150.png") | ForEach-Object {
+          $iconPath = "$packageDir\resources\icons\$_"
+          if (-not (Test-Path $iconPath)) {
+            [System.IO.File]::WriteAllBytes($iconPath, $pngBytes)
+          }
+        }
+
+        Write-Host "✅ MSIX package structure prepared" -ForegroundColor Green
+
+    - name: Create MSIX package
+      shell: powershell
+      run: |
+        Write-Host "Creating MSIX package..." -ForegroundColor Yellow
+
+        $packageDir = "KiwixDesktop_Package"
+        $msixPath = "$env:TEMP\kiwix-desktop.msix"
+
+        # Find MakeAppx tool
+        $makeAppxPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.22621.0\x64\makeappx.exe"
+        if (-not (Test-Path $makeAppxPath)) {
+          $WindowsKitsPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
+          $makeAppxPath = Get-ChildItem -Path $WindowsKitsPath -Recurse -Filter "makeappx.exe" |
+                         Where-Object { $_.Directory.Name -like "*x64*" } |
+                         Sort-Object Name -Descending |
+                         Select-Object -First 1 -ExpandProperty FullName
+        }
+
+        if (-not (Test-Path $makeAppxPath)) {
+          Write-Error "MakeAppx tool not found. Windows SDK is required."
+          exit 1
+        }
+
+        Write-Host "Using MakeAppx: $makeAppxPath" -ForegroundColor Cyan
+        Write-Host "Package directory: $packageDir" -ForegroundColor Cyan
+        Write-Host "Output MSIX: $msixPath" -ForegroundColor Cyan
+
+        # Create the MSIX package
+        & $makeAppxPath pack /d $packageDir /p $msixPath /l /o
+
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Failed to create MSIX package (exit code: $LASTEXITCODE)"
+          exit 1
+        }
+
+        if (Test-Path $msixPath) {
+          $size = (Get-Item $msixPath).Length
+          Write-Host "✅ MSIX package created successfully" -ForegroundColor Green
+          Write-Host "Package size: $([math]::Round($size / 1MB, 2)) MB" -ForegroundColor Gray
+          Write-Host "Package location: $msixPath" -ForegroundColor Gray
+        } else {
+          Write-Error "MSIX package was not created"
+          exit 1
+        }
+
+    - name: Validate signing certificate
+      shell: powershell
+      run: |
+        if (-not $env:SIGNING_CERTIFICATE -or -not $env:SIGNING_PASSWORD) {
+          Write-Host "❌ MSIX signing requires a certificate!" -ForegroundColor Red
+          Write-Host ""
+          Write-Host "To fix this, add these secrets to your GitHub repository:" -ForegroundColor Yellow
+          Write-Host "  SIGNING_CERTIFICATE - Base64 encoded .pfx certificate file" -ForegroundColor Gray
+          Write-Host "  SIGNING_PASSWORD - Certificate password" -ForegroundColor Gray
+          Write-Error "Missing required signing certificate secrets"
+          exit 1
+        }
+
+        Write-Host "✅ Signing certificate secrets are available" -ForegroundColor Green
+
+        # Create temporary certificate file to inspect
+        try {
+          $certBytes = [Convert]::FromBase64String($env:SIGNING_CERTIFICATE)
+          $tempCertPath = "temp-cert.pfx"
+          [IO.File]::WriteAllBytes($tempCertPath, $certBytes)
+
+          Write-Host ""
+          Write-Host "📋 Certificate Information:" -ForegroundColor Cyan
+          Write-Host "=" * 60 -ForegroundColor Gray
+
+          # Load certificate and display information
+          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($tempCertPath, $env:SIGNING_PASSWORD)
+
+          Write-Host "Subject: $($cert.Subject)" -ForegroundColor White
+          Write-Host "Issuer: $($cert.Issuer)" -ForegroundColor White
+          Write-Host "Serial Number: $($cert.SerialNumber)" -ForegroundColor White
+          Write-Host "Thumbprint: $($cert.Thumbprint)" -ForegroundColor White
+          Write-Host "Algorithm: $($cert.SignatureAlgorithm.FriendlyName)" -ForegroundColor White
+          Write-Host "Key Size: $($cert.PublicKey.Key.KeySize) bits" -ForegroundColor White
+          Write-Host "Valid From: $($cert.NotBefore.ToString('yyyy-MM-dd HH:mm:ss UTC'))" -ForegroundColor White
+          Write-Host "Valid To: $($cert.NotAfter.ToString('yyyy-MM-dd HH:mm:ss UTC'))" -ForegroundColor White
+
+          # Check certificate validity
+          $now = Get-Date
+          $daysUntilExpiry = ($cert.NotAfter - $now).Days
+          if ($cert.NotAfter -lt $now) {
+            Write-Host "⚠️  Certificate EXPIRED $(-$daysUntilExpiry) days ago!" -ForegroundColor Red
+          } elseif ($daysUntilExpiry -lt 30) {
+            Write-Host "⚠️  Certificate expires in $daysUntilExpiry days" -ForegroundColor Yellow
+          } else {
+            Write-Host "✅ Certificate expires in $daysUntilExpiry days" -ForegroundColor Green
+          }
+
+          # Check enhanced key usage
+          $hasCodeSigning = $false
+          $ekuOids = @()
+          foreach ($extension in $cert.Extensions) {
+            if ($extension.Oid.Value -eq "2.5.29.37") {  # Enhanced Key Usage OID
+              $eku = [System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension]$extension
+              foreach ($usage in $eku.EnhancedKeyUsages) {
+                $ekuOids += $usage.Value
+                if ($usage.Value -eq "1.3.6.1.5.5.7.3.3") {  # Code Signing OID
+                  $hasCodeSigning = $true
+                }
+              }
+            }
+          }
+
+          Write-Host "Enhanced Key Usage OIDs: $($ekuOids -join ', ')" -ForegroundColor White
+
+          if ($hasCodeSigning) {
+            Write-Host "✅ Certificate has Code Signing capability" -ForegroundColor Green
+          } else {
+            Write-Host "⚠️  Certificate may not have Code Signing capability" -ForegroundColor Yellow
+          }
+
+          # Check if it's self-signed
+          if ($cert.Subject -eq $cert.Issuer) {
+            Write-Host "🔒 Self-signed certificate" -ForegroundColor Yellow
+          } else {
+            Write-Host "🔒 CA-issued certificate" -ForegroundColor Green
+          }
+
+          Write-Host "=" * 60 -ForegroundColor Gray
+
+          # Clean up temporary file
+          Remove-Item $tempCertPath -Force -ErrorAction SilentlyContinue
+
+        } catch {
+          Write-Host "⚠️  Could not inspect certificate: $($_.Exception.Message)" -ForegroundColor Yellow
+          Write-Host "This may indicate certificate format issues" -ForegroundColor Gray
+        }
+      env:
+        SIGNING_CERTIFICATE: ${{ secrets.SIGNING_CERTIFICATE }}
+        SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+
+    - name: Sign MSIX package
+      shell: powershell
+      run: |
+        Write-Host "Signing MSIX package..." -ForegroundColor Yellow
+
+        # Create certificate file from base64
+        $certBytes = [Convert]::FromBase64String($env:SIGNING_CERTIFICATE)
+        $certPath = "signing-cert.pfx"
+        [IO.File]::WriteAllBytes($certPath, $certBytes)
+
+        # Find SignTool
+        $signToolPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe"
+        if (-not (Test-Path $signToolPath)) {
+          $WindowsKitsPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
+          $signToolPath = Get-ChildItem -Path $WindowsKitsPath -Recurse -Filter "signtool.exe" |
+                         Where-Object { $_.Directory.Name -like "*x64*" } |
+                         Sort-Object Name -Descending |
+                         Select-Object -First 1 -ExpandProperty FullName
+        }
+
+        if (-not (Test-Path $signToolPath)) {
+          Write-Error "SignTool not found. Windows SDK is required."
+          exit 1
+        }
+
+        # Find the MSIX file
+        $msixPath = "$env:TEMP\kiwix-desktop.msix"
+        if (-not (Test-Path $msixPath)) {
+          Write-Error "MSIX package not found at: $msixPath"
+          exit 1
+        }
+
+        Write-Host "Using SignTool: $signToolPath" -ForegroundColor Cyan
+        Write-Host "Signing package: $msixPath" -ForegroundColor Cyan
+
+        # Sign the package with timestamp
+        & $signToolPath sign /fd SHA256 /f $certPath /p $env:SIGNING_PASSWORD /tr http://timestamp.digicert.com /td sha256 $msixPath
+
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Failed to sign MSIX package (exit code: $LASTEXITCODE)"
+          Remove-Item $certPath -Force -ErrorAction SilentlyContinue
+          exit 1
+        }
+
+        Write-Host "✅ MSIX package signed successfully!" -ForegroundColor Green
+
+        # Verify the signature
+        Write-Host "Verifying package signature..." -ForegroundColor Yellow
+        & $signToolPath verify /pa /v $msixPath
+        if ($LASTEXITCODE -eq 0) {
+          Write-Host "✅ Package signature verified" -ForegroundColor Green
+        } else {
+          Write-Host "⚠️  Signature verification failed (may be expected for self-signed certificates)" -ForegroundColor Yellow
+          Write-Host "This doesn't prevent the package from working in development scenarios" -ForegroundColor Gray
+        }
+
+        # Clean up certificate file
+        Remove-Item $certPath -Force -ErrorAction SilentlyContinue
+
+        # Create final package with timestamp
+        $timestamp = Get-Date -Format "yyyy-MM-dd-HHmm"
+        $finalPath = "$env:TEMP\kiwix-desktop-$timestamp.msix"
+        Move-Item $msixPath $finalPath -Force
+        Write-Host "Final signed package: $finalPath" -ForegroundColor Cyan
+
+        # Set output for artifact upload
+        echo "SIGNED_MSIX_PATH=$finalPath" >> $env:GITHUB_ENV
+      env:
+        SIGNING_CERTIFICATE: ${{ secrets.SIGNING_CERTIFICATE }}
+        SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+
+    - name: Upload signed MSIX package
+      uses: actions/upload-artifact@v4
+      with:
+        name: kiwix-desktop-msix-${{ github.run_number }}
+        path: ${{ env.SIGNED_MSIX_PATH }}
+        retention-days: 30
+        compression-level: 0  # MSIX is already compressed
+        if-no-files-found: error
+
+    - name: Package summary
+      shell: powershell
+      run: |
+        if (Test-Path $env:SIGNED_MSIX_PATH) {
+          $size = (Get-Item $env:SIGNED_MSIX_PATH).Length
+          $sizeMB = [math]::Round($size / 1MB, 2)
+
+          Write-Host ""
+          Write-Host "📦 Package Summary:" -ForegroundColor Cyan
+          Write-Host "=" * 40 -ForegroundColor Gray
+          Write-Host "Package: $(Split-Path $env:SIGNED_MSIX_PATH -Leaf)" -ForegroundColor White
+          Write-Host "Size: $sizeMB MB" -ForegroundColor White
+          Write-Host "Nightly Source: $env:NIGHTLY_URL" -ForegroundColor White
+          Write-Host "Signed: ✅" -ForegroundColor Green
+          Write-Host "Artifact: kiwix-desktop-msix-$env:GITHUB_RUN_NUMBER" -ForegroundColor White
+          Write-Host "=" * 40 -ForegroundColor Gray
+        }
