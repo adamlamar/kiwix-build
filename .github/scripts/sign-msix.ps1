@@ -69,56 +69,114 @@ try {
     exit 1
 }
 
-# Sign the package
-Write-Host "Signing MSIX package..." -ForegroundColor Cyan
-Write-Host "Command: signtool sign /debug /fd SHA256 /f `"$CertificatePath`" /p [PASSWORD] /tr http://timestamp.digicert.com /td sha256 /v `"$MsixPath`"" -ForegroundColor Gray
-
-$signResult = & $signToolPath sign /debug /fd SHA256 /f $CertificatePath /p $env:SIGNING_PASSWORD /tr http://timestamp.digicert.com /td sha256 /v $MsixPath
-
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "[OK] MSIX package signed successfully!" -ForegroundColor Green
-} else {
-    Write-Host "[ERROR] Signing failed with exit code: $LASTEXITCODE" -ForegroundColor Red
-    Write-Host "SignTool output:" -ForegroundColor Yellow
-    $signResult | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
-
-    # Common troubleshooting info
-    Write-Host "" -ForegroundColor Gray
-    Write-Host "Common causes:" -ForegroundColor Yellow
-    Write-Host "  1. Certificate format issues (ensure it's a valid .pfx file)" -ForegroundColor Gray
-    Write-Host "  2. Incorrect password" -ForegroundColor Gray
-    Write-Host "  3. Certificate doesn't have code signing capability" -ForegroundColor Gray
-    Write-Host "  4. Timestamp server unavailable" -ForegroundColor Gray
-    Write-Host "  5. MSIX file is corrupted or locked" -ForegroundColor Gray
-
+# Validate MSIX package before signing
+Write-Host "Validating MSIX package..." -ForegroundColor Cyan
+try {
+    # Check if it's a valid ZIP file (MSIX is ZIP-based)
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($MsixPath)
+    $manifestFile = $archive.Entries | Where-Object { $_.Name -eq "AppxManifest.xml" }
+    if (-not $manifestFile) {
+        Write-Host "[ERROR] MSIX package is missing AppxManifest.xml" -ForegroundColor Red
+        $archive.Dispose()
+        Remove-Item $CertificatePath -Force -ErrorAction SilentlyContinue
+        exit 1
+    }
+    $archive.Dispose()
+    Write-Host "[OK] MSIX package structure is valid" -ForegroundColor Green
+} catch {
+    Write-Host "[ERROR] MSIX package validation failed: $($_.Exception.Message)" -ForegroundColor Red
     Remove-Item $CertificatePath -Force -ErrorAction SilentlyContinue
     exit 1
 }
 
-# Verify the signature
-Write-Host "Verifying package signature..." -ForegroundColor Cyan
-$verifyResult = & $signToolPath verify /pa /v $MsixPath 2>&1
+# Get MSIX file info
+$msixInfo = Get-Item $MsixPath
+Write-Host "MSIX file size: $($msixInfo.Length) bytes ($([math]::Round($msixInfo.Length / 1MB, 2)) MB)" -ForegroundColor Gray
+
+# Sign the package
+Write-Host "Signing MSIX package..." -ForegroundColor Cyan
+# Sign the package
+Write-Host "Signing MSIX package..." -ForegroundColor Cyan
+
+# First try: Sign with timestamp
+Write-Host "Attempt 1: Signing with timestamp..." -ForegroundColor Gray
+Write-Host "Command: signtool sign /fd SHA256 /f `"$CertificatePath`" /p [PASSWORD] /tr http://timestamp.digicert.com /td sha256 /v `"$MsixPath`"" -ForegroundColor Gray
+
+$signResult = & $signToolPath sign /fd SHA256 /f $CertificatePath /p $env:SIGNING_PASSWORD /tr "http://timestamp.digicert.com" /td sha256 /v $MsixPath 2>&1
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "[OK] Package signature verified successfully" -ForegroundColor Green
+    Write-Host "[OK] MSIX package signed successfully with timestamp!" -ForegroundColor Green
+    $signedSuccessfully = $true
 } else {
-    Write-Host "[WARNING] Signature verification failed (may be expected for self-signed certificates)" -ForegroundColor Yellow
-    Write-Host "Verification output:" -ForegroundColor Gray
-    $verifyResult | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
-    Write-Host "This doesn't prevent the package from working in development scenarios" -ForegroundColor Gray
+    Write-Host "[WARNING] Signing with timestamp failed (exit code: $LASTEXITCODE)" -ForegroundColor Yellow
+    Write-Host "SignTool output:" -ForegroundColor Gray
+    $signResult | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+
+    # Second try: Sign without timestamp
+    Write-Host ""
+    Write-Host "Attempt 2: Signing without timestamp..." -ForegroundColor Gray
+    Write-Host "Command: signtool sign /fd SHA256 /f `"$CertificatePath`" /p [PASSWORD] /v `"$MsixPath`"" -ForegroundColor Gray
+
+    $signResult2 = & $signToolPath sign /fd SHA256 /f $CertificatePath /p $env:SIGNING_PASSWORD /v $MsixPath 2>&1
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "[OK] MSIX package signed successfully without timestamp!" -ForegroundColor Green
+        $signedSuccessfully = $true
+    } else {
+        Write-Host "[ERROR] Both signing attempts failed!" -ForegroundColor Red
+        Write-Host "Second attempt output:" -ForegroundColor Yellow
+        $signResult2 | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+
+        # Specific error analysis
+        if ($signResult -match "0x8007000b" -or $signResult2 -match "0x8007000b") {
+            Write-Host ""
+            Write-Host "ERROR 0x8007000b (ERROR_BAD_FORMAT) detected:" -ForegroundColor Red
+            Write-Host "This typically indicates:" -ForegroundColor Yellow
+            Write-Host "  1. The MSIX file is corrupted or malformed" -ForegroundColor Gray
+            Write-Host "  2. The MSIX was not created properly by MakeAppx" -ForegroundColor Gray
+            Write-Host "  3. File permissions or access issues" -ForegroundColor Gray
+            Write-Host "  4. The certificate store has issues" -ForegroundColor Gray
+        }
+
+        Write-Host ""
+        Write-Host "Troubleshooting steps:" -ForegroundColor Yellow
+        Write-Host "  1. Verify MSIX creation process completed successfully" -ForegroundColor Gray
+        Write-Host "  2. Check if MSIX file is accessible and not locked" -ForegroundColor Gray
+        Write-Host "  3. Try recreating the MSIX package" -ForegroundColor Gray
+        Write-Host "  4. Verify certificate has proper Enhanced Key Usage" -ForegroundColor Gray
+
+        Remove-Item $CertificatePath -Force -ErrorAction SilentlyContinue
+        exit 1
+    }
 }
 
-# Clean up certificate file
-Remove-Item $CertificatePath -Force -ErrorAction SilentlyContinue
+if ($signedSuccessfully) {if ($signedSuccessfully) {
+    # Verify the signature
+    Write-Host "Verifying package signature..." -ForegroundColor Cyan
+    $verifyResult = & $signToolPath verify /pa /v $MsixPath 2>&1
 
-# Create final package with timestamp
-$timestamp = Get-Date -Format "yyyy-MM-dd-HHmm"
-$finalPath = "$env:TEMP\kiwix-desktop-$timestamp.msix"
-Move-Item $MsixPath $finalPath -Force
-Write-Host "[OK] Final signed package: $finalPath" -ForegroundColor Green
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "[OK] Package signature verified successfully" -ForegroundColor Green
+    } else {
+        Write-Host "[WARNING] Signature verification failed (may be expected for self-signed certificates)" -ForegroundColor Yellow
+        Write-Host "Verification output:" -ForegroundColor Gray
+        $verifyResult | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+        Write-Host "This doesn't prevent the package from working in development scenarios" -ForegroundColor Gray
+    }
 
-# Set output for artifact upload
-echo "SIGNED_MSIX_PATH=$finalPath" >> $env:GITHUB_ENV
+    # Clean up certificate file
+    Remove-Item $CertificatePath -Force -ErrorAction SilentlyContinue
 
-Write-Host "Signing process completed successfully!" -ForegroundColor Green
-exit 0
+    # Create final package with timestamp
+    $timestamp = Get-Date -Format "yyyy-MM-dd-HHmm"
+    $finalPath = "$env:TEMP\kiwix-desktop-$timestamp.msix"
+    Move-Item $MsixPath $finalPath -Force
+    Write-Host "[OK] Final signed package: $finalPath" -ForegroundColor Green
+
+    # Set output for artifact upload
+    echo "SIGNED_MSIX_PATH=$finalPath" >> $env:GITHUB_ENV
+
+    Write-Host "Signing process completed successfully!" -ForegroundColor Green
+    exit 0
+}
