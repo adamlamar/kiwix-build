@@ -27,7 +27,7 @@ if (-not (Test-Path $ExePath)) {
 }
 
 # Create staging directory
-$StagingDir = Join-Path $env:TEMP "KiwixMSIXStaging"
+$StagingDir = Join-Path $PWD "KiwixMSIXStaging"
 if (Test-Path $StagingDir) {
     Remove-Item $StagingDir -Recurse -Force
 }
