@@ -3,7 +3,7 @@
 # Simple MSIX creation script adapted for kiwix-build nightly workflow
 param(
     [string]$BuildPath = "nightly-extracted",
-    [string]$OutputPath = "$env:TEMP\kiwix-desktop.msix",
+    [string]$OutputPath = "$PWD\kiwix-desktop.msix",
     [string]$Version = "2.4.1.0"
 )
 
