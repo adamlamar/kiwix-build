@@ -37,11 +37,6 @@ jobs:
       env:
         NIGHTLY_URL_INPUT: ${{ github.event.inputs.nightly_url }}
 
-    - name: Prepare MSIX package structure
-      shell: powershell
-      run: |
-        & .\.github\scripts\prepare-msix-package.ps1
-
     - name: Create MSIX package
       shell: powershell
       run: |

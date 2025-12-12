@@ -2,7 +2,7 @@
 
 # Simple MSIX creation script adapted for kiwix-build nightly workflow
 param(
-    [string]$BuildPath = "KiwixDesktop_Package",
+    [string]$BuildPath = "nightly-extracted",
     [string]$OutputPath = "$env:TEMP\kiwix-desktop.msix",
     [string]$Version = "2.4.1.0"
 )
@@ -36,26 +36,25 @@ New-Item -ItemType Directory -Path $StagingDir -Force | Out-Null
 Write-Host "Created staging directory: $StagingDir" -ForegroundColor Yellow
 
 try {
-    # Copy all files from nightly build to staging directory
-    Write-Host "Copying application files..." -ForegroundColor Cyan
+    # Copy all files from nightly build directly to staging directory
+    Write-Host "Copying application files from nightly build..." -ForegroundColor Cyan
 
-    # Get all files and directories from the build path, but flatten the structure
-    # We want everything in the package root, not preserving the nested directory structure
+    # Copy files directly, preserving subdirectory structure but putting executables in root
     Get-ChildItem $BuildPath -Recurse | Where-Object { -not $_.PSIsContainer } | ForEach-Object {
-        $fileName = $_.Name
-        $targetPath = Join-Path $StagingDir $fileName
-
-        # Handle subdirectories by recreating them in staging
         $relativePath = $_.FullName.Substring($BuildPath.Length + 1)
-        $relativeDir = Split-Path $relativePath
 
-        if ($relativeDir -and $relativeDir -ne ".") {
-            # This file is in a subdirectory, preserve the subdirectory structure
-            $targetDir = Join-Path $StagingDir $relativeDir
+        # For files in subdirectories, preserve the structure
+        # For files in root, put them in staging root
+        if ($relativePath.Contains('\')) {
+            # File is in a subdirectory - preserve structure
+            $targetPath = Join-Path $StagingDir $relativePath
+            $targetDir = Split-Path $targetPath
             if (-not (Test-Path $targetDir)) {
                 New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
             }
-            $targetPath = Join-Path $StagingDir $relativePath
+        } else {
+            # File is in root - copy to staging root
+            $targetPath = Join-Path $StagingDir $_.Name
         }
 
         Copy-Item $_.FullName $targetPath -Force
