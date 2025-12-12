@@ -80,11 +80,47 @@ jobs:
         SIGNING_CERTIFICATE: ${{ secrets.SIGNING_CERTIFICATE }}
         SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
 
-    - name: Upload MSIX package
+    - name: Extract certificate for distribution
+      continue-on-error: true
+      shell: powershell
+      run: |
+        # Extract .cer file from the certificate for easy installation
+        if ($env:SIGNING_CERTIFICATE) {
+          Write-Host "Creating certificate file for distribution..." -ForegroundColor Cyan
+
+          # Write PFX file temporarily
+          $certBytes = [Convert]::FromBase64String($env:SIGNING_CERTIFICATE)
+          $pfxPath = "$PWD\temp-cert.pfx"
+          [System.IO.File]::WriteAllBytes($pfxPath, $certBytes)
+
+          # Extract the public certificate as .cer
+          $cerPath = "$PWD\kiwix-development-certificate.cer"
+          try {
+            # Use PowerShell to extract the certificate
+            $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfxPath, $env:SIGNING_PASSWORD)
+            $cerBytes = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert)
+            [System.IO.File]::WriteAllBytes($cerPath, $cerBytes)
+
+            Write-Host "[OK] Certificate extracted: kiwix-development-certificate.cer" -ForegroundColor Green
+            echo "CERTIFICATE_PATH=$cerPath" >> $env:GITHUB_ENV
+          } catch {
+            Write-Host "[WARNING] Could not extract certificate: $($_.Exception.Message)" -ForegroundColor Yellow
+          } finally {
+            # Clean up temporary PFX
+            if (Test-Path $pfxPath) { Remove-Item $pfxPath -Force }
+          }
+        }
+      env:
+        SIGNING_CERTIFICATE: ${{ secrets.SIGNING_CERTIFICATE }}
+        SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+
+    - name: Upload MSIX package with certificate
       uses: actions/upload-artifact@v4
       with:
         name: kiwix-desktop-msix-${{ github.run_number }}
-        path: ${{ env.SIGNED_MSIX_PATH }}
+        path: |
+          ${{ env.SIGNED_MSIX_PATH }}
+          ${{ env.CERTIFICATE_PATH }}
         retention-days: 30
         compression-level: 0  # MSIX is already compressed
         if-no-files-found: warn
@@ -109,6 +145,21 @@ jobs:
           } else {
             Write-Host "Signed: NO (unsigned package)" -ForegroundColor Yellow
           }
+
+          # Check if certificate was included
+          if ($env:CERTIFICATE_PATH -and (Test-Path $env:CERTIFICATE_PATH)) {
+            $certName = Split-Path $env:CERTIFICATE_PATH -Leaf
+            Write-Host "Certificate: $certName (included)" -ForegroundColor Green
+            Write-Host ""
+            Write-Host "INSTALLATION INSTRUCTIONS:" -ForegroundColor Yellow
+            Write-Host "1. Download and extract the artifact" -ForegroundColor Gray
+            Write-Host "2. Right-click '$certName' -> Install Certificate" -ForegroundColor Gray
+            Write-Host "3. Install to 'Local Machine' -> 'Trusted Root Certification Authorities'" -ForegroundColor Gray
+            Write-Host "4. Double-click the .msix file to install Kiwix Desktop" -ForegroundColor Gray
+          } else {
+            Write-Host "Certificate: Not included" -ForegroundColor Yellow
+          }
+
           Write-Host "Artifact: kiwix-desktop-msix-$env:GITHUB_RUN_NUMBER" -ForegroundColor White
           Write-Host "=" * 40 -ForegroundColor Gray
         } else {
