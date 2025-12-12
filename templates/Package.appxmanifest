@@ -9,7 +9,7 @@
 
   <Properties>
     <DisplayName>Kiwix Desktop</DisplayName>
-    <PublisherDisplayName>Kiwix</PublisherDisplayName>
+    <PublisherDisplayName>Kiwix Foundation</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <Description>Kiwix Desktop - Offline Wikipedia and Educational Content Reader</Description>
   </Properties>
