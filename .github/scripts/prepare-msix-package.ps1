@@ -13,13 +13,15 @@ New-Item -ItemType Directory -Path $PackageDir -Force
 
 # Copy nightly build contents to package directory
 Write-Host "Copying application files..." -ForegroundColor Cyan
-Get-ChildItem $ExtractedPath -Recurse | Copy-Item -Destination {
-    $dest = $_.FullName -replace [regex]::Escape($ExtractedPath), $PackageDir
-    if ($_.PSIsContainer) {
-        New-Item -ItemType Directory -Path $dest -Force
-    }
-    $dest
-} -Force
+
+# Use robocopy for reliable directory copying
+$robocopyResult = robocopy $ExtractedPath $PackageDir /E /NFL /NDL /NJH /NJS /nc /ns /np
+if ($LASTEXITCODE -gt 7) {
+    Write-Error "Failed to copy files from $ExtractedPath to $PackageDir"
+    exit 1
+}
+
+Write-Host "✅ Application files copied successfully" -ForegroundColor Green
 
 # Copy and prepare MSIX manifest from template
 $templatePath = "templates\Package.appxmanifest"
