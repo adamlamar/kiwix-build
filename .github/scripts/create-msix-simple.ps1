@@ -61,6 +61,30 @@ try {
 
     Write-Host "[OK] Application files copied" -ForegroundColor Green
 
+    # Verify executable was copied correctly
+    $stagedExePath = Join-Path $StagingDir "kiwix-desktop.exe"
+    if (Test-Path $stagedExePath) {
+        Write-Host "  Executable verified in staging: kiwix-desktop.exe" -ForegroundColor Green
+    } else {
+        Write-Host "[WARNING] Executable not found in staging directory" -ForegroundColor Yellow
+        Write-Host "Listing files in staging root:" -ForegroundColor Yellow
+        Get-ChildItem $StagingDir -File | ForEach-Object {
+            Write-Host "  Found: $($_.Name)" -ForegroundColor Gray
+        }
+
+        # Look for any .exe files
+        $exeFiles = Get-ChildItem $StagingDir -Filter "*.exe" -Recurse
+        if ($exeFiles) {
+            Write-Host "Found .exe files in staging:" -ForegroundColor Yellow
+            $exeFiles | ForEach-Object {
+                $relativePath = $_.FullName.Substring($StagingDir.Length + 1)
+                Write-Host "  $relativePath" -ForegroundColor Gray
+            }
+        } else {
+            Write-Host "No .exe files found in staging directory" -ForegroundColor Red
+        }
+    }
+
     # Create qt.conf for Qt configuration
     Write-Host "Creating qt.conf..." -ForegroundColor Cyan
     $qtConf = @"
