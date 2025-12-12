@@ -103,7 +103,7 @@ Write-Host "Signing MSIX package..." -ForegroundColor Cyan
 Write-Host "Attempt 1: Signing with timestamp..." -ForegroundColor Gray
 Write-Host "Command: signtool sign /fd SHA256 /f `"$CertificatePath`" /p [PASSWORD] /tr http://timestamp.digicert.com /td sha256 /v `"$MsixPath`"" -ForegroundColor Gray
 
-$signResult = & $signToolPath sign /fd SHA256 /f $CertificatePath /p $env:SIGNING_PASSWORD /tr "http://timestamp.digicert.com" /td sha256 /v $MsixPath 2>&1
+$signResult = & $signToolPath sign /debug /fd SHA256 /f $CertificatePath /p $env:SIGNING_PASSWORD /tr "http://timestamp.digicert.com" /td sha256 /v $MsixPath 2>&1
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "[OK] MSIX package signed successfully with timestamp!" -ForegroundColor Green
