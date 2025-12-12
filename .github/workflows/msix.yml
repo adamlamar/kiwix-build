@@ -45,7 +45,7 @@ jobs:
     - name: Create MSIX package
       shell: powershell
       run: |
-        & .\.github\scripts\create-msix.ps1
+        & .\.github\scripts\create-msix-simple.ps1
 
     - name: Validate signing certificate
       shell: powershell
