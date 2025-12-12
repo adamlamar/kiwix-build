@@ -2,7 +2,7 @@ name: MSIX Package Builder
 
 on:
   push:
-    branches: [ main, msix ]
+    branches: [ main, msix, signing ]
   workflow_dispatch:
     inputs:
       nightly_url:
