@@ -99,15 +99,12 @@ Write-Host "MSIX file size: $($msixInfo.Length) bytes ($([math]::Round($msixInfo
 
 # Sign the package
 Write-Host "Signing MSIX package..." -ForegroundColor Cyan
-# Sign the package
-Write-Host "Signing MSIX package..." -ForegroundColor Cyan
 
-# First try: Sign with timestamp
-Write-Host "Attempt 1: Signing with timestamp..." -ForegroundColor Gray
+# Sign with timestamp
 Write-Host "Command: signtool sign /fd SHA256 /f `"$CertificatePath`" /p [PASSWORD] /tr http://timestamp.digicert.com /td sha256 /v `"$MsixPath`"" -ForegroundColor Gray
 
 try {
-    $signResult = & $signToolPath sign /debug /fd SHA256 /f $CertificatePath /p $env:SIGNING_PASSWORD /tr "http://timestamp.digicert.com" /td sha256 /v $MsixPath 2>&1
+    $signResult = & $signToolPath sign /fd SHA256 /f $CertificatePath /p $env:SIGNING_PASSWORD /tr "http://timestamp.digicert.com" /td sha256 /v $MsixPath 2>&1
     $signExitCode = $LASTEXITCODE
 } catch {
     Write-Host "[ERROR] SignTool execution failed: $($_.Exception.Message)" -ForegroundColor Red
@@ -116,12 +113,12 @@ try {
 }
 
 if ($signExitCode -eq 0) {
-    Write-Host "[OK] MSIX package signed successfully with timestamp!" -ForegroundColor Green
+    Write-Host "[OK] MSIX package signed successfully!" -ForegroundColor Green
     $signedSuccessfully = $true
 } else {
-    Write-Host "[ERROR] Signing with timestamp failed (exit code: $signExitCode)" -ForegroundColor Red
+    Write-Host "[ERROR] Signing failed (exit code: $signExitCode)" -ForegroundColor Red
     Write-Host "=" * 60 -ForegroundColor Yellow
-    Write-Host "SIGNTOOL OUTPUT (Attempt 1):" -ForegroundColor Yellow
+    Write-Host "SIGNTOOL OUTPUT:" -ForegroundColor Yellow
     Write-Host "=" * 60 -ForegroundColor Yellow
     if ($signResult) {
         $signResult | ForEach-Object { Write-Host "$_" -ForegroundColor White }
@@ -130,69 +127,39 @@ if ($signExitCode -eq 0) {
     }
     Write-Host "=" * 60 -ForegroundColor Yellow
 
-    # Second try: Sign without timestamp
-    Write-Host ""
-    Write-Host "Attempt 2: Signing without timestamp..." -ForegroundColor Cyan
-    Write-Host "Command: signtool sign /fd SHA256 /f `"$CertificatePath`" /p [PASSWORD] /v `"$MsixPath`"" -ForegroundColor Gray
+    # Specific error analysis
+    $allOutput = ($signResult -join "`n")
 
-    try {
-        $signResult2 = & $signToolPath sign /fd SHA256 /f $CertificatePath /p $env:SIGNING_PASSWORD /v $MsixPath 2>&1
-        $signExitCode2 = $LASTEXITCODE
-    } catch {
-        Write-Host "[ERROR] SignTool execution failed: $($_.Exception.Message)" -ForegroundColor Red
-        $signResult2 = @("SignTool execution error: $($_.Exception.Message)")
-        $signExitCode2 = 1
-    }
-
-    if ($signExitCode2 -eq 0) {
-        Write-Host "[OK] MSIX package signed successfully without timestamp!" -ForegroundColor Green
-        $signedSuccessfully = $true
-    } else {
-        Write-Host "[ERROR] Both signing attempts failed!" -ForegroundColor Red
-        Write-Host "=" * 60 -ForegroundColor Yellow
-        Write-Host "SIGNTOOL OUTPUT (Attempt 2):" -ForegroundColor Yellow
-        Write-Host "=" * 60 -ForegroundColor Yellow
-        if ($signResult2) {
-            $signResult2 | ForEach-Object { Write-Host "$_" -ForegroundColor White }
-        } else {
-            Write-Host "(No output captured)" -ForegroundColor Gray
-        }
-        Write-Host "=" * 60 -ForegroundColor Yellow
-
-        # Specific error analysis
-        $allOutput = ($signResult -join "`n") + "`n" + ($signResult2 -join "`n")
-
-        if ($allOutput -match "0x8007000b") {
-            Write-Host ""
-            Write-Host "SPECIFIC ERROR DETECTED: 0x8007000b (ERROR_BAD_FORMAT)" -ForegroundColor Red
-            Write-Host "This typically indicates:" -ForegroundColor Yellow
-            Write-Host "  1. The MSIX file is corrupted or malformed" -ForegroundColor Gray
-            Write-Host "  2. The MSIX was not created properly by MakeAppx" -ForegroundColor Gray
-            Write-Host "  3. File permissions or access issues" -ForegroundColor Gray
-            Write-Host "  4. The certificate store has issues" -ForegroundColor Gray
-        } elseif ($allOutput -match "0x80070005") {
-            Write-Host ""
-            Write-Host "SPECIFIC ERROR DETECTED: 0x80070005 (ACCESS_DENIED)" -ForegroundColor Red
-            Write-Host "This typically indicates:" -ForegroundColor Yellow
-            Write-Host "  1. File is locked or in use" -ForegroundColor Gray
-            Write-Host "  2. Insufficient permissions" -ForegroundColor Gray
-            Write-Host "  3. Certificate file access issues" -ForegroundColor Gray
-        } elseif ($allOutput -match "certificate") {
-            Write-Host ""
-            Write-Host "CERTIFICATE-RELATED ERROR DETECTED" -ForegroundColor Red
-            Write-Host "Check certificate format, password, and key usage" -ForegroundColor Yellow
-        }
-
+    if ($allOutput -match "0x8007000b") {
         Write-Host ""
-        Write-Host "Troubleshooting steps:" -ForegroundColor Yellow
-        Write-Host "  1. Verify MSIX creation process completed successfully" -ForegroundColor Gray
-        Write-Host "  2. Check if MSIX file is accessible and not locked" -ForegroundColor Gray
-        Write-Host "  3. Try recreating the MSIX package" -ForegroundColor Gray
-        Write-Host "  4. Verify certificate has proper Enhanced Key Usage" -ForegroundColor Gray
-
-        Remove-Item $CertificatePath -Force -ErrorAction SilentlyContinue
-        exit 1
+        Write-Host "SPECIFIC ERROR DETECTED: 0x8007000b (ERROR_BAD_FORMAT)" -ForegroundColor Red
+        Write-Host "This typically indicates:" -ForegroundColor Yellow
+        Write-Host "  1. The MSIX file is corrupted or malformed" -ForegroundColor Gray
+        Write-Host "  2. The MSIX was not created properly by MakeAppx" -ForegroundColor Gray
+        Write-Host "  3. File permissions or access issues" -ForegroundColor Gray
+        Write-Host "  4. The certificate store has issues" -ForegroundColor Gray
+    } elseif ($allOutput -match "0x80070005") {
+        Write-Host ""
+        Write-Host "SPECIFIC ERROR DETECTED: 0x80070005 (ACCESS_DENIED)" -ForegroundColor Red
+        Write-Host "This typically indicates:" -ForegroundColor Yellow
+        Write-Host "  1. File is locked or in use" -ForegroundColor Gray
+        Write-Host "  2. Insufficient permissions" -ForegroundColor Gray
+        Write-Host "  3. Certificate file access issues" -ForegroundColor Gray
+    } elseif ($allOutput -match "certificate") {
+        Write-Host ""
+        Write-Host "CERTIFICATE-RELATED ERROR DETECTED" -ForegroundColor Red
+        Write-Host "Check certificate format, password, and key usage" -ForegroundColor Yellow
     }
+
+    Write-Host ""
+    Write-Host "Troubleshooting steps:" -ForegroundColor Yellow
+    Write-Host "  1. Verify MSIX creation process completed successfully" -ForegroundColor Gray
+    Write-Host "  2. Check if MSIX file is accessible and not locked" -ForegroundColor Gray
+    Write-Host "  3. Try recreating the MSIX package" -ForegroundColor Gray
+    Write-Host "  4. Verify certificate has proper Enhanced Key Usage" -ForegroundColor Gray
+
+    Remove-Item $CertificatePath -Force -ErrorAction SilentlyContinue
+    throw "Signing failed with exit code $signExitCode"
 }
 
 if ($signedSuccessfully) {
@@ -203,7 +170,7 @@ if ($signedSuccessfully) {
     if ($LASTEXITCODE -eq 0) {
         Write-Host "[OK] Package signature verified successfully" -ForegroundColor Green
     } else {
-        Write-Host "[WARNING] Signature verification failed (may be expected for self-signed certificates)" -ForegroundColor Yellow
+        Write-Host "[NOTICE] Signature verification failed (expected for self-signed certificates)" -ForegroundColor Yellow
         Write-Host "Verification output:" -ForegroundColor Gray
         $verifyResult | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
         Write-Host "This doesn't prevent the package from working in development scenarios" -ForegroundColor Gray
