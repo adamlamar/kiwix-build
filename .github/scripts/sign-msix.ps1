@@ -6,6 +6,9 @@ param(
     [string]$CertificatePath = "signing-cert.pfx"
 )
 
+# Set error action to continue - don't stop on command errors
+$ErrorActionPreference = "Continue"
+
 Write-Host "Starting MSIX signing process..." -ForegroundColor Yellow
 Write-Host "MSIX Path: $MsixPath" -ForegroundColor Gray
 Write-Host "Certificate Path: $CertificatePath" -ForegroundColor Gray
@@ -103,13 +106,20 @@ Write-Host "Signing MSIX package..." -ForegroundColor Cyan
 Write-Host "Attempt 1: Signing with timestamp..." -ForegroundColor Gray
 Write-Host "Command: signtool sign /fd SHA256 /f `"$CertificatePath`" /p [PASSWORD] /tr http://timestamp.digicert.com /td sha256 /v `"$MsixPath`"" -ForegroundColor Gray
 
-$signResult = & $signToolPath sign /debug /fd SHA256 /f $CertificatePath /p $env:SIGNING_PASSWORD /tr "http://timestamp.digicert.com" /td sha256 /v $MsixPath 2>&1
+try {
+    $signResult = & $signToolPath sign /debug /fd SHA256 /f $CertificatePath /p $env:SIGNING_PASSWORD /tr "http://timestamp.digicert.com" /td sha256 /v $MsixPath 2>&1
+    $signExitCode = $LASTEXITCODE
+} catch {
+    Write-Host "[ERROR] SignTool execution failed: $($_.Exception.Message)" -ForegroundColor Red
+    $signResult = @("SignTool execution error: $($_.Exception.Message)")
+    $signExitCode = 1
+}
 
-if ($LASTEXITCODE -eq 0) {
+if ($signExitCode -eq 0) {
     Write-Host "[OK] MSIX package signed successfully with timestamp!" -ForegroundColor Green
     $signedSuccessfully = $true
 } else {
-    Write-Host "[ERROR] Signing with timestamp failed (exit code: $LASTEXITCODE)" -ForegroundColor Red
+    Write-Host "[ERROR] Signing with timestamp failed (exit code: $signExitCode)" -ForegroundColor Red
     Write-Host "=" * 60 -ForegroundColor Yellow
     Write-Host "SIGNTOOL OUTPUT (Attempt 1):" -ForegroundColor Yellow
     Write-Host "=" * 60 -ForegroundColor Yellow
@@ -125,9 +135,16 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "Attempt 2: Signing without timestamp..." -ForegroundColor Cyan
     Write-Host "Command: signtool sign /fd SHA256 /f `"$CertificatePath`" /p [PASSWORD] /v `"$MsixPath`"" -ForegroundColor Gray
 
-    $signResult2 = & $signToolPath sign /fd SHA256 /f $CertificatePath /p $env:SIGNING_PASSWORD /v $MsixPath 2>&1
+    try {
+        $signResult2 = & $signToolPath sign /fd SHA256 /f $CertificatePath /p $env:SIGNING_PASSWORD /v $MsixPath 2>&1
+        $signExitCode2 = $LASTEXITCODE
+    } catch {
+        Write-Host "[ERROR] SignTool execution failed: $($_.Exception.Message)" -ForegroundColor Red
+        $signResult2 = @("SignTool execution error: $($_.Exception.Message)")
+        $signExitCode2 = 1
+    }
 
-    if ($LASTEXITCODE -eq 0) {
+    if ($signExitCode2 -eq 0) {
         Write-Host "[OK] MSIX package signed successfully without timestamp!" -ForegroundColor Green
         $signedSuccessfully = $true
     } else {
