@@ -151,7 +151,7 @@ if ($LASTEXITCODE -eq 0) {
     }
 }
 
-if ($signedSuccessfully) {if ($signedSuccessfully) {
+if ($signedSuccessfully) {
     # Verify the signature
     Write-Host "Verifying package signature..." -ForegroundColor Cyan
     $verifyResult = & $signToolPath verify /pa /v $MsixPath 2>&1
