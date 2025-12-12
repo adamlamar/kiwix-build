@@ -81,7 +81,7 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "[ERROR] Signing failed with exit code: $LASTEXITCODE" -ForegroundColor Red
     Write-Host "SignTool output:" -ForegroundColor Yellow
     $signResult | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
-    
+
     # Common troubleshooting info
     Write-Host "" -ForegroundColor Gray
     Write-Host "Common causes:" -ForegroundColor Yellow
@@ -90,7 +90,7 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "  3. Certificate doesn't have code signing capability" -ForegroundColor Gray
     Write-Host "  4. Timestamp server unavailable" -ForegroundColor Gray
     Write-Host "  5. MSIX file is corrupted or locked" -ForegroundColor Gray
-    
+
     Remove-Item $CertificatePath -Force -ErrorAction SilentlyContinue
     exit 1
 }
