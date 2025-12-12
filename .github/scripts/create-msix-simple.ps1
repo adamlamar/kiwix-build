@@ -41,11 +41,13 @@ try {
 
     # Copy files directly, preserving subdirectory structure but putting executables in root
     Get-ChildItem $BuildPath -Recurse | Where-Object { -not $_.PSIsContainer } | ForEach-Object {
-        $relativePath = $_.FullName.Substring($BuildPath.Length + 1)
+        # Get the relative path properly using Resolve-Path
+        $fullBuildPath = (Resolve-Path $BuildPath).Path
+        $relativePath = $_.FullName.Substring($fullBuildPath.Length + 1)
 
         # For files in subdirectories, preserve the structure
         # For files in root, put them in staging root
-        if ($relativePath.Contains('\')) {
+        if ($relativePath.Contains('\') -or $relativePath.Contains('/')) {
             # File is in a subdirectory - preserve structure
             $targetPath = Join-Path $StagingDir $relativePath
             $targetDir = Split-Path $targetPath
