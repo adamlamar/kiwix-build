@@ -103,12 +103,13 @@ BrowserSubprocessPath = QtWebEngineProcess.exe
 
     Copy-Item $ManifestSource $ManifestDest -Force
 
-    # Update version in manifest if different from default
-    if ($Version -ne "2.4.1.0") {
-        $manifestContent = Get-Content $ManifestDest -Raw
-        $manifestContent = $manifestContent -replace 'Version="2\.4\.1\.0"', "Version=`"$Version`""
-        Set-Content $ManifestDest $manifestContent -Encoding UTF8
-    }
+    # Replace version placeholder in manifest
+    Write-Host "Processing manifest template..." -ForegroundColor Cyan
+    $manifestContent = Get-Content $ManifestDest -Raw
+    $manifestContent = $manifestContent -replace '\{VERSION\}', $Version
+    Set-Content $ManifestDest $manifestContent -Encoding UTF8
+
+    Write-Host "  Replaced {VERSION} with $Version" -ForegroundColor Gray
 
     Write-Host "[OK] Manifest processed" -ForegroundColor Green
 
