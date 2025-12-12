@@ -63,31 +63,40 @@ try {
     }
     Write-Host "[OK] Application files copied" -ForegroundColor Green
 
+    # List the complete contents of the staging directory for debugging
+    Write-Host "=== STAGING DIRECTORY CONTENTS ===" -ForegroundColor Cyan
+    Write-Host "Staging directory: $StagingDir" -ForegroundColor Gray
+
+    Write-Host "Root files:" -ForegroundColor Yellow
+    Get-ChildItem $StagingDir -File | ForEach-Object {
+        Write-Host "  $($_.Name)" -ForegroundColor White
+    }
+
+    Write-Host "Subdirectories:" -ForegroundColor Yellow
+    Get-ChildItem $StagingDir -Directory | ForEach-Object {
+        Write-Host "  $($_.Name)/" -ForegroundColor Cyan
+        # List files in each subdirectory
+        Get-ChildItem $_.FullName -File | ForEach-Object {
+            Write-Host "    $($_.Name)" -ForegroundColor Gray
+        }
+    }
+
+    Write-Host "=== END STAGING CONTENTS ===" -ForegroundColor Cyan
+
     # Verify executable was copied correctly
     $stagedExePath = Join-Path $StagingDir "kiwix-desktop.exe"
     if (Test-Path $stagedExePath) {
         Write-Host "  Executable verified in staging: kiwix-desktop.exe" -ForegroundColor Green
     } else {
-        Write-Host "[WARNING] Executable not found in staging directory" -ForegroundColor Yellow
-        Write-Host "Listing files in staging root:" -ForegroundColor Yellow
-        Get-ChildItem $StagingDir -File | ForEach-Object {
-            Write-Host "  Found: $($_.Name)" -ForegroundColor Gray
-        }
+        Write-Host "[ERROR] kiwix-desktop.exe NOT found in staging root!" -ForegroundColor Red
 
         # Look for any .exe files
-        $exeFiles = Get-ChildItem $StagingDir -Filter "*.exe" -Recurse
-        if ($exeFiles) {
-            Write-Host "Found .exe files in staging:" -ForegroundColor Yellow
-            $exeFiles | ForEach-Object {
-                $relativePath = $_.FullName.Substring($StagingDir.Length + 1)
-                Write-Host "  $relativePath" -ForegroundColor Gray
-            }
-        } else {
-            Write-Host "No .exe files found in staging directory" -ForegroundColor Red
+        Write-Host "Searching for .exe files in staging:" -ForegroundColor Yellow
+        Get-ChildItem $StagingDir -Filter "*.exe" -Recurse | ForEach-Object {
+            $relativePath = $_.FullName.Substring($StagingDir.Length + 1)
+            Write-Host "  Found: $relativePath" -ForegroundColor Gray
         }
-    }
-
-    # Create qt.conf for Qt configuration
+    }    # Create qt.conf for Qt configuration
     Write-Host "Creating qt.conf..." -ForegroundColor Cyan
     $qtConf = @"
 [Paths]
