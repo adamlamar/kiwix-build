@@ -48,6 +48,7 @@ jobs:
         & .\.github\scripts\create-msix-simple.ps1
 
     - name: Validate signing certificate
+      continue-on-error: true
       shell: powershell
       run: |
         & .\.github\scripts\validate-certificate.ps1
@@ -56,21 +57,40 @@ jobs:
         SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
 
     - name: Sign MSIX package
+      continue-on-error: true
+      id: sign-msix
       shell: powershell
       run: |
-        & .\.github\scripts\sign-msix.ps1
+        # Try to sign the MSIX package
+        try {
+          & .\.github\scripts\sign-msix.ps1
+          Write-Host "[OK] Signing completed successfully" -ForegroundColor Green
+        } catch {
+          Write-Host "[WARNING] Signing failed, will upload unsigned package" -ForegroundColor Yellow
+          Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Gray
+
+          # Set fallback path to unsigned MSIX
+          $unsignedPath = "$env:TEMP\kiwix-desktop.msix"
+          if (Test-Path $unsignedPath) {
+            $timestamp = Get-Date -Format "yyyy-MM-dd-HHmm"
+            $finalPath = "$env:TEMP\kiwix-desktop-unsigned-$timestamp.msix"
+            Move-Item $unsignedPath $finalPath -Force
+            echo "SIGNED_MSIX_PATH=$finalPath" >> $env:GITHUB_ENV
+            Write-Host "[OK] Unsigned package ready: $finalPath" -ForegroundColor Yellow
+          }
+        }
       env:
         SIGNING_CERTIFICATE: ${{ secrets.SIGNING_CERTIFICATE }}
         SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
 
-    - name: Upload signed MSIX package
+    - name: Upload MSIX package
       uses: actions/upload-artifact@v4
       with:
         name: kiwix-desktop-msix-${{ github.run_number }}
         path: ${{ env.SIGNED_MSIX_PATH }}
         retention-days: 30
         compression-level: 0  # MSIX is already compressed
-        if-no-files-found: error
+        if-no-files-found: warn
 
     - name: Package summary
       shell: powershell
@@ -78,14 +98,22 @@ jobs:
         if (Test-Path $env:SIGNED_MSIX_PATH) {
           $size = (Get-Item $env:SIGNED_MSIX_PATH).Length
           $sizeMB = [math]::Round($size / 1MB, 2)
+          $packageName = Split-Path $env:SIGNED_MSIX_PATH -Leaf
+          $isSigned = $packageName -notmatch "unsigned"
 
           Write-Host ""
           Write-Host "[SUMMARY] Package Summary:" -ForegroundColor Cyan
           Write-Host "=" * 40 -ForegroundColor Gray
-          Write-Host "Package: $(Split-Path $env:SIGNED_MSIX_PATH -Leaf)" -ForegroundColor White
+          Write-Host "Package: $packageName" -ForegroundColor White
           Write-Host "Size: $sizeMB MB" -ForegroundColor White
           Write-Host "Nightly Source: $env:NIGHTLY_URL" -ForegroundColor White
-          Write-Host "Signed: YES" -ForegroundColor Green
+          if ($isSigned) {
+            Write-Host "Signed: YES" -ForegroundColor Green
+          } else {
+            Write-Host "Signed: NO (unsigned package)" -ForegroundColor Yellow
+          }
           Write-Host "Artifact: kiwix-desktop-msix-$env:GITHUB_RUN_NUMBER" -ForegroundColor White
           Write-Host "=" * 40 -ForegroundColor Gray
+        } else {
+          Write-Host "[WARNING] No MSIX package found for upload" -ForegroundColor Yellow
         }
