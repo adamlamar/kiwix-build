@@ -39,26 +39,28 @@ try {
     # Copy all files from nightly build to staging directory
     Write-Host "Copying application files..." -ForegroundColor Cyan
 
-    Get-ChildItem $BuildPath -Recurse | ForEach-Object {
-        $relativePath = $_.FullName.Substring($BuildPath.Length + 1)
-        $targetPath = Join-Path $StagingDir $relativePath
+    # Get all files and directories from the build path, but flatten the structure
+    # We want everything in the package root, not preserving the nested directory structure
+    Get-ChildItem $BuildPath -Recurse | Where-Object { -not $_.PSIsContainer } | ForEach-Object {
+        $fileName = $_.Name
+        $targetPath = Join-Path $StagingDir $fileName
 
-        if ($_.PSIsContainer) {
-            # It's a directory
-            if (-not (Test-Path $targetPath)) {
-                New-Item -ItemType Directory -Path $targetPath -Force | Out-Null
-            }
-        } else {
-            # It's a file
-            $targetDir = Split-Path $targetPath
+        # Handle subdirectories by recreating them in staging
+        $relativePath = $_.FullName.Substring($BuildPath.Length + 1)
+        $relativeDir = Split-Path $relativePath
+
+        if ($relativeDir -and $relativeDir -ne ".") {
+            # This file is in a subdirectory, preserve the subdirectory structure
+            $targetDir = Join-Path $StagingDir $relativeDir
             if (-not (Test-Path $targetDir)) {
                 New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
             }
-            Copy-Item $_.FullName $targetPath -Force
-            Write-Host "  Copied $relativePath" -ForegroundColor Gray
+            $targetPath = Join-Path $StagingDir $relativePath
         }
-    }
 
+        Copy-Item $_.FullName $targetPath -Force
+        Write-Host "  Copied $relativePath" -ForegroundColor Gray
+    }
     Write-Host "[OK] Application files copied" -ForegroundColor Green
 
     # Verify executable was copied correctly
