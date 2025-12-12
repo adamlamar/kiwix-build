@@ -2,9 +2,9 @@
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
-  <Identity Name="org.kiwix.desktop"
+  <Identity Name="KiwixFoundation.Kiwix"
             Version="{VERSION}"
-            Publisher="CN=Kiwix"
+            Publisher="CN=Kiwix Foundation"
             ProcessorArchitecture="x64" />
 
   <Properties>
