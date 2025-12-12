@@ -2,7 +2,7 @@
 
 # Sign MSIX package with certificate
 param(
-    [string]$MsixPath = "$env:TEMP\kiwix-desktop.msix",
+    [string]$MsixPath = "$PWD\kiwix-desktop.msix",
     [string]$CertificatePath = "signing-cert.pfx"
 )
 
@@ -170,7 +170,7 @@ if ($signedSuccessfully) {
 
     # Create final package with timestamp
     $timestamp = Get-Date -Format "yyyy-MM-dd-HHmm"
-    $finalPath = "$env:TEMP\kiwix-desktop-$timestamp.msix"
+    $finalPath = "$PWD\kiwix-desktop-$timestamp.msix"
     Move-Item $MsixPath $finalPath -Force
     Write-Host "[OK] Final signed package: $finalPath" -ForegroundColor Green
 

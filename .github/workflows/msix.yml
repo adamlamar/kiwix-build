@@ -65,10 +65,10 @@ jobs:
           Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Gray
 
           # Set fallback path to unsigned MSIX
-          $unsignedPath = "$env:TEMP\kiwix-desktop.msix"
+          $unsignedPath = "$PWD\kiwix-desktop.msix"
           if (Test-Path $unsignedPath) {
             $timestamp = Get-Date -Format "yyyy-MM-dd-HHmm"
-            $finalPath = "$env:TEMP\kiwix-desktop-unsigned-$timestamp.msix"
+            $finalPath = "$PWD\kiwix-desktop-unsigned-$timestamp.msix"
             Move-Item $unsignedPath $finalPath -Force
             echo "SIGNED_MSIX_PATH=$finalPath" >> $env:GITHUB_ENV
             Write-Host "[OK] Unsigned package ready: $finalPath" -ForegroundColor Yellow
