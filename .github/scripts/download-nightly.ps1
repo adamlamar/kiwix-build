@@ -11,6 +11,7 @@ Write-Host "Downloading nightly build from: $Url" -ForegroundColor Yellow
 $zipPath = "nightly-build.zip"
 
 try {
+    $ProgressPreference = 'SilentlyContinue'
     Invoke-WebRequest -Uri $Url -OutFile $zipPath -UseBasicParsing
     Write-Host "[OK] Download completed" -ForegroundColor Green
 
