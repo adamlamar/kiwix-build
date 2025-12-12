@@ -56,13 +56,15 @@ jobs:
       id: sign-msix
       shell: powershell
       run: |
-        # Try to sign the MSIX package
-        try {
-          & .\.github\scripts\sign-msix.ps1
+        # Let the script handle its own retry logic
+        $exitCode = 0
+        & .\.github\scripts\sign-msix.ps1
+        $exitCode = $LASTEXITCODE
+
+        if ($exitCode -eq 0) {
           Write-Host "[OK] Signing completed successfully" -ForegroundColor Green
-        } catch {
+        } else {
           Write-Host "[WARNING] Signing failed, will upload unsigned package" -ForegroundColor Yellow
-          Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Gray
 
           # Set fallback path to unsigned MSIX
           $unsignedPath = "$PWD\kiwix-desktop.msix"
