@@ -26,7 +26,7 @@ if ($robocopyExitCode -gt 7) {
 # Reset exit code after successful robocopy (robocopy returns non-zero for success)
 $global:LASTEXITCODE = 0
 
-Write-Host "✅ Application files copied successfully" -ForegroundColor Green
+Write-Host "[OK] Application files copied successfully" -ForegroundColor Green
 
 # Copy and prepare MSIX manifest from template
 $templatePath = "templates\Package.appxmanifest"
@@ -44,7 +44,7 @@ $manifestContent = $manifestContent -replace '\{VERSION\}', $version
 
 # Save the processed manifest
 Set-Content -Path $manifestPath -Value $manifestContent -Encoding UTF8
-Write-Host "✅ Manifest created from template: $templatePath" -ForegroundColor Green
+Write-Host "[OK] Manifest created from template: $templatePath" -ForegroundColor Green
 
 # Create Assets directory and placeholder icon files for the template's expected paths
 if (-not (Test-Path "$PackageDir\Assets")) {
@@ -61,7 +61,7 @@ $pngBytes = [byte[]](0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00,
     }
 }
 
-Write-Host "✅ MSIX package structure prepared" -ForegroundColor Green
+Write-Host "[OK] MSIX package structure prepared" -ForegroundColor Green
 
 # Ensure script exits with success code
 exit 0

@@ -12,7 +12,7 @@ $zipPath = "nightly-build.zip"
 
 try {
     Invoke-WebRequest -Uri $Url -OutFile $zipPath -UseBasicParsing
-    Write-Host "✅ Download completed" -ForegroundColor Green
+    Write-Host "[OK] Download completed" -ForegroundColor Green
 
     # Verify download
     $size = (Get-Item $zipPath).Length
@@ -26,7 +26,7 @@ try {
     Write-Host "Extracted contents:" -ForegroundColor Cyan
     Get-ChildItem $ExtractPath -Recurse | Select-Object -First 10 | ForEach-Object { Write-Host "  $($_.Name)" }
 
-    Write-Host "✅ Nightly build ready for MSIX packaging" -ForegroundColor Green
+    Write-Host "[OK] Nightly build ready for MSIX packaging" -ForegroundColor Green
 
 } catch {
     Write-Error "Failed to download or extract nightly build: $($_.Exception.Message)"

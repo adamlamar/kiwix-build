@@ -77,7 +77,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 if (Test-Path $OutputPath) {
-  Write-Host "✅ MSIX package created successfully: $OutputPath" -ForegroundColor Green
+  Write-Host "[OK] MSIX package created successfully: $OutputPath" -ForegroundColor Green
   $size = (Get-Item $OutputPath).Length
   Write-Host "Package size: $($size) bytes" -ForegroundColor Gray
 } else {

@@ -58,70 +58,7 @@ jobs:
     - name: Sign MSIX package
       shell: powershell
       run: |
-        Write-Host "Signing MSIX package..." -ForegroundColor Yellow
-
-        # Create certificate file from base64
-        $certBytes = [Convert]::FromBase64String($env:SIGNING_CERTIFICATE)
-        $certPath = "signing-cert.pfx"
-        [IO.File]::WriteAllBytes($certPath, $certBytes)
-
-        # Find SignTool
-        $signToolPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe"
-        if (-not (Test-Path $signToolPath)) {
-          $WindowsKitsPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
-          $signToolPath = Get-ChildItem -Path $WindowsKitsPath -Recurse -Filter "signtool.exe" |
-                         Where-Object { $_.Directory.Name -like "*x64*" } |
-                         Sort-Object Name -Descending |
-                         Select-Object -First 1 -ExpandProperty FullName
-        }
-
-        if (-not (Test-Path $signToolPath)) {
-          Write-Error "SignTool not found. Windows SDK is required."
-          exit 1
-        }
-
-        # Find the MSIX file
-        $msixPath = "$env:TEMP\kiwix-desktop.msix"
-        if (-not (Test-Path $msixPath)) {
-          Write-Error "MSIX package not found at: $msixPath"
-          exit 1
-        }
-
-        Write-Host "Using SignTool: $signToolPath" -ForegroundColor Cyan
-        Write-Host "Signing package: $msixPath" -ForegroundColor Cyan
-
-        # Sign the package with timestamp
-        & $signToolPath sign /fd SHA256 /f $certPath /p $env:SIGNING_PASSWORD /tr http://timestamp.digicert.com /td sha256 $msixPath
-
-        if ($LASTEXITCODE -ne 0) {
-          Write-Error "Failed to sign MSIX package (exit code: $LASTEXITCODE)"
-          Remove-Item $certPath -Force -ErrorAction SilentlyContinue
-          exit 1
-        }
-
-        Write-Host "✅ MSIX package signed successfully!" -ForegroundColor Green
-
-        # Verify the signature
-        Write-Host "Verifying package signature..." -ForegroundColor Yellow
-        & $signToolPath verify /pa /v $msixPath
-        if ($LASTEXITCODE -eq 0) {
-          Write-Host "✅ Package signature verified" -ForegroundColor Green
-        } else {
-          Write-Host "⚠️  Signature verification failed (may be expected for self-signed certificates)" -ForegroundColor Yellow
-          Write-Host "This doesn't prevent the package from working in development scenarios" -ForegroundColor Gray
-        }
-
-        # Clean up certificate file
-        Remove-Item $certPath -Force -ErrorAction SilentlyContinue
-
-        # Create final package with timestamp
-        $timestamp = Get-Date -Format "yyyy-MM-dd-HHmm"
-        $finalPath = "$env:TEMP\kiwix-desktop-$timestamp.msix"
-        Move-Item $msixPath $finalPath -Force
-        Write-Host "Final signed package: $finalPath" -ForegroundColor Cyan
-
-        # Set output for artifact upload
-        echo "SIGNED_MSIX_PATH=$finalPath" >> $env:GITHUB_ENV
+        & .\.github\scripts\sign-msix.ps1
       env:
         SIGNING_CERTIFICATE: ${{ secrets.SIGNING_CERTIFICATE }}
         SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
@@ -143,12 +80,12 @@ jobs:
           $sizeMB = [math]::Round($size / 1MB, 2)
 
           Write-Host ""
-          Write-Host "📦 Package Summary:" -ForegroundColor Cyan
+          Write-Host "[SUMMARY] Package Summary:" -ForegroundColor Cyan
           Write-Host "=" * 40 -ForegroundColor Gray
           Write-Host "Package: $(Split-Path $env:SIGNED_MSIX_PATH -Leaf)" -ForegroundColor White
           Write-Host "Size: $sizeMB MB" -ForegroundColor White
           Write-Host "Nightly Source: $env:NIGHTLY_URL" -ForegroundColor White
-          Write-Host "Signed: ✅" -ForegroundColor Green
+          Write-Host "Signed: YES" -ForegroundColor Green
           Write-Host "Artifact: kiwix-desktop-msix-$env:GITHUB_RUN_NUMBER" -ForegroundColor White
           Write-Host "=" * 40 -ForegroundColor Gray
         }
