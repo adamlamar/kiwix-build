@@ -152,7 +152,7 @@ BrowserSubprocessPath = QtWebEngineProcess.exe
     }
 
     # Copy the manifest file
-    $ManifestSource = Join-Path "windows" "msix" "Package.appxmanifest"
+    $ManifestSource = Join-Path -Path "windows" -ChildPath "msix" | Join-Path -ChildPath "Package.appxmanifest"
     $ManifestDest = Join-Path $StagingDir "AppxManifest.xml"
 
     if (-not (Test-Path $ManifestSource)) {
