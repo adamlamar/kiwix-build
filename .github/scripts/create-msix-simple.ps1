@@ -112,20 +112,43 @@ BrowserSubprocessPath = QtWebEngineProcess.exe
     $AssetsDir = Join-Path $StagingDir "Assets"
     New-Item -ItemType Directory -Path $AssetsDir -Force | Out-Null
 
-    Write-Host "Creating MSIX assets..." -ForegroundColor Cyan
+    Write-Host "Copying MSIX assets..." -ForegroundColor Cyan
 
     $RequiredAssets = @(
         "Square150x150Logo.png",
         "Square44x44Logo.png",
-        "StoreLogo.png"
+        "StoreLogo.png",
+        "Wide310x150Logo.png"
     )
 
-    # Create minimal placeholder PNG files (1x1 pixel transparent)
-    $placeholderContent = [Convert]::FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
-    foreach ($asset in $RequiredAssets) {
-        $assetPath = Join-Path $AssetsDir $asset
-        [IO.File]::WriteAllBytes($assetPath, $placeholderContent)
-        Write-Host "  Created placeholder $asset" -ForegroundColor Gray
+    # Copy actual logo assets from project directory
+    $SourceAssetsDir = "windows\msix\Assets"
+    if (Test-Path $SourceAssetsDir) {
+        foreach ($asset in $RequiredAssets) {
+            $sourcePath = Join-Path $SourceAssetsDir $asset
+            $assetPath = Join-Path $AssetsDir $asset
+
+            if (Test-Path $sourcePath) {
+                Copy-Item $sourcePath $assetPath -Force
+                Write-Host "  Copied $asset" -ForegroundColor Green
+            } else {
+                Write-Host "  [WARNING] Asset not found: $asset - creating placeholder" -ForegroundColor Yellow
+                # Create minimal placeholder PNG files (1x1 pixel transparent) as fallback
+                $placeholderContent = [Convert]::FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
+                [IO.File]::WriteAllBytes($assetPath, $placeholderContent)
+            }
+        }
+    } else {
+        Write-Host "  [WARNING] Source assets directory not found: $SourceAssetsDir" -ForegroundColor Yellow
+        Write-Host "  Creating placeholder assets instead..." -ForegroundColor Yellow
+
+        # Fallback to placeholders if assets directory doesn't exist
+        $placeholderContent = [Convert]::FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
+        foreach ($asset in $RequiredAssets) {
+            $assetPath = Join-Path $AssetsDir $asset
+            [IO.File]::WriteAllBytes($assetPath, $placeholderContent)
+            Write-Host "  Created placeholder $asset" -ForegroundColor Gray
+        }
     }
 
     # Copy the manifest file
