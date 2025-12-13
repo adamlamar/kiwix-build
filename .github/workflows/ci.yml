@@ -15,6 +15,7 @@ jobs:
           - native_dyn
           - native_static
     runs-on: windows-2022
+    environment: dev
     env:
       OS_NAME: windows
       COMPILE_CONFIG: ${{matrix.config}}
@@ -68,6 +69,88 @@ jobs:
         python .github\\scripts\\build_projects.py
       env:
         KIWIX_FILE_UPLOAD_SSH_KEY_PATH: ${{ runner.temp }}/kiwix_file_upload_key
+        SSH_KEY: ${{ runner.temp }}/id_rsa
+    - name: Create MSIX package
+      if: ${{ matrix.config == 'native_mixed' && (contains(github.ref, 'main') || contains(github.ref, 'msix')) }}
+      shell: powershell
+      run: |
+        $version = "2.4.1.${{ github.run_number }}"
+        & ./.github/scripts/create-msix.ps1 -Version $version
+    - name: Validate signing certificate
+      if: ${{ matrix.config == 'native_mixed' && (contains(github.ref, 'main') || contains(github.ref, 'msix')) }}
+      continue-on-error: true
+      shell: powershell
+      run: |
+        & ./.github/scripts/validate-certificate.ps1
+      env:
+        SIGNING_CERTIFICATE: ${{ secrets.SIGNING_CERTIFICATE }}
+        SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+    - name: Sign MSIX package
+      if: ${{ matrix.config == 'native_mixed' && (contains(github.ref, 'main') || contains(github.ref, 'msix')) }}
+      continue-on-error: true
+      id: sign-msix
+      shell: powershell
+      run: |
+        # Let the script handle its own retry logic
+        $exitCode = 0
+        & ./.github/scripts/sign-msix.ps1
+        $exitCode = $LASTEXITCODE
+
+        if ($exitCode -eq 0) {
+          Write-Host "[OK] Signing completed successfully" -ForegroundColor Green
+        } else {
+          Write-Host "[WARNING] Signing failed, will upload unsigned package" -ForegroundColor Yellow
+
+          # Set fallback path to unsigned MSIX
+          $unsignedPath = "$PWD\kiwix-desktop.msix"
+          if (Test-Path $unsignedPath) {
+            $timestamp = Get-Date -Format "yyyy-MM-dd-HHmm"
+            $finalPath = "$PWD\kiwix-desktop-unsigned-$timestamp.msix"
+            Move-Item $unsignedPath $finalPath -Force
+            echo "SIGNED_MSIX_PATH=$finalPath" >> $env:GITHUB_ENV
+            Write-Host "[OK] Unsigned package ready: $finalPath" -ForegroundColor Yellow
+          }
+        }
+      env:
+        SIGNING_CERTIFICATE: ${{ secrets.SIGNING_CERTIFICATE }}
+        SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+    - name: Upload MSIX package
+      if: ${{ matrix.config == 'native_mixed' && (contains(github.ref, 'main') || contains(github.ref, 'msix')) }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: kiwix-desktop-msix-${{ github.run_number }}
+        path: ${{ env.SIGNED_MSIX_PATH || 'kiwix-desktop*.msix' }}
+        retention-days: 30
+        compression-level: 0  # MSIX is already compressed
+        if-no-files-found: warn
+    - name: Package summary
+      if: ${{ matrix.config == 'native_mixed' && (contains(github.ref, 'main') || contains(github.ref, 'msix')) }}
+      shell: powershell
+      run: |
+        $msixFiles = Get-ChildItem "kiwix-desktop*.msix"
+        if ($msixFiles) {
+          foreach ($file in $msixFiles) {
+            $size = $file.Length
+            $sizeMB = [math]::Round($size / 1MB, 2)
+            $packageName = $file.Name
+            $isSigned = $packageName -notmatch "unsigned"
+
+            Write-Host ""
+            Write-Host "[SUMMARY] Package Summary:" -ForegroundColor Cyan
+            Write-Host "=" * 40 -ForegroundColor Gray
+            Write-Host "Package: $packageName" -ForegroundColor White
+            Write-Host "Size: $sizeMB MB" -ForegroundColor White
+            if ($isSigned) {
+              Write-Host "Signed: YES" -ForegroundColor Green
+            } else {
+              Write-Host "Signed: NO (unsigned package)" -ForegroundColor Yellow
+            }
+            Write-Host "Artifact: kiwix-desktop-msix-$env:GITHUB_RUN_NUMBER" -ForegroundColor White
+            Write-Host "=" * 40 -ForegroundColor Gray
+          }
+        } else {
+          Write-Host "[WARNING] No MSIX package found for upload" -ForegroundColor Yellow
+        }
     - name: Upload failure logs
       if: failure()
       run: |

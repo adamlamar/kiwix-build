@@ -61,7 +61,11 @@ def main():
             print_message("Cannot get archive. Build dependencies")
             run_kiwix_build("alldependencies", config=COMPILE_CONFIG)
             archive_file = make_deps_archive(name=base_dep_archive_name, full=True)
-            upload(archive_file, "ci@tmp.kiwix.org:30022", "/data/tmp/ci")
+            # Skip upload for forks that don't have access to tmp.kiwix.org
+            if os.environ.get('GITHUB_REPOSITORY', '').lower() == 'kiwix/kiwix-build':
+                upload(archive_file, "ci@tmp.kiwix.org:30022", "/data/tmp/ci")
+            else:
+                print_message("Skipping base deps upload for fork: {}", os.environ.get('GITHUB_REPOSITORY', 'unknown'))
             os.remove(str(archive_file))
 
 
