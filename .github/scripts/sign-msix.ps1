@@ -3,7 +3,9 @@
 # Sign MSIX package with certificate
 param(
     [string]$MsixPath = "$PWD\kiwix-desktop.msix",
-    [string]$CertificatePath = "signing-cert.pfx"
+    [string]$CertificatePath = "signing-cert.pfx",
+    [Parameter(Mandatory=$true)]
+    [string]$Version
 )
 
 # Set error action to continue - don't stop on command errors
@@ -12,6 +14,7 @@ $ErrorActionPreference = "Continue"
 Write-Host "Starting MSIX signing process..." -ForegroundColor Yellow
 Write-Host "MSIX Path: $MsixPath" -ForegroundColor Gray
 Write-Host "Certificate Path: $CertificatePath" -ForegroundColor Gray
+Write-Host "Version: $Version" -ForegroundColor Gray
 
 # Validate inputs
 if (-not $env:SIGNING_CERTIFICATE -or -not $env:SIGNING_PASSWORD) {
@@ -179,9 +182,8 @@ if ($signedSuccessfully) {
     # Clean up certificate file
     Remove-Item $CertificatePath -Force -ErrorAction SilentlyContinue
 
-    # Create final package with timestamp
-    $timestamp = Get-Date -Format "yyyy-MM-dd-HHmm"
-    $finalPath = "$PWD\kiwix-desktop-$timestamp.msix"
+    # Create final package with version
+    $finalPath = "$PWD\kiwix-desktop-$Version.msix"
     Move-Item $MsixPath $finalPath -Force
     Write-Host "[OK] Final signed package: $finalPath" -ForegroundColor Green
 

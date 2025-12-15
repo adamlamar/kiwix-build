@@ -93,7 +93,8 @@ jobs:
       run: |
         # Let the script handle its own retry logic
         $exitCode = 0
-        & ./.github/scripts/sign-msix.ps1
+        $version = "2.4.1.${{ github.run_number }}"
+        & ./.github/scripts/sign-msix.ps1 -Version $version
         $exitCode = $LASTEXITCODE
 
         if ($exitCode -eq 0) {
@@ -104,8 +105,7 @@ jobs:
           # Set fallback path to unsigned MSIX
           $unsignedPath = "$PWD\kiwix-desktop.msix"
           if (Test-Path $unsignedPath) {
-            $timestamp = Get-Date -Format "yyyy-MM-dd-HHmm"
-            $finalPath = "$PWD\kiwix-desktop-unsigned-$timestamp.msix"
+            $finalPath = "$PWD\kiwix-desktop-unsigned-$version.msix"
             Move-Item $unsignedPath $finalPath -Force
             echo "SIGNED_MSIX_PATH=$finalPath" >> $env:GITHUB_ENV
             Write-Host "[OK] Unsigned package ready: $finalPath" -ForegroundColor Yellow
