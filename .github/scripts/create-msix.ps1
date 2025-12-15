@@ -119,23 +119,14 @@ try {
         if (Test-Path $qtPath) {
             Write-Host "Found Qt binaries at: $qtPath" -ForegroundColor Cyan
 
-            # Copy essential Qt DLLs
-            $QtDlls = @(
-                "Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll", "Qt6WebEngineWidgets.dll",
-                "Qt6WebEngineCore.dll", "Qt6WebChannel.dll", "Qt6Network.dll", "Qt6Positioning.dll",
-                "Qt6PrintSupport.dll", "Qt6QuickWidgets.dll", "Qt6Quick.dll", "Qt6Qml.dll", "Qt6QmlModels.dll", "Qt6OpenGL.dll"
-            )
-
-            foreach ($dll in $QtDlls) {
-                $dllPath = Join-Path $qtPath $dll
-                if (Test-Path $dllPath) {
-                    $destPath = Join-Path $StagingDir $dll
-                    if (-not (Test-Path $destPath)) {
-                        Copy-Item $dllPath $StagingDir -Force
-                        Write-Host "  Copied $dll" -ForegroundColor Gray
-                    } else {
-                        Write-Host "  Skipped $dll (already exists)" -ForegroundColor Yellow
-                    }
+            # Copy ALL Qt DLLs instead of whitelisting specific ones
+            Get-ChildItem $qtPath -Filter "*.dll" | ForEach-Object {
+                $destPath = Join-Path $StagingDir $_.Name
+                if (-not (Test-Path $destPath)) {
+                    Copy-Item $_.FullName $StagingDir -Force
+                    Write-Host "  Copied $($_.Name)" -ForegroundColor Gray
+                } else {
+                    Write-Host "  Skipped $($_.Name) (already exists)" -ForegroundColor Yellow
                 }
             }
 
@@ -178,34 +169,6 @@ try {
     }
 
     Write-Host "=== END STAGING CONTENTS ===" -ForegroundColor Cyan
-
-    # Verify critical DLLs are present
-    Write-Host "=== VERIFYING CRITICAL DLLS ===" -ForegroundColor Cyan
-    $CriticalDlls = @(
-        "Qt6PrintSupport.dll", "Qt6QuickWidgets.dll", "Qt6Quick.dll", "Qt6Qml.dll", "Qt6QmlModels.dll", "Qt6OpenGL.dll",
-        "Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll"
-    )
-
-    $MissingDlls = @()
-    foreach ($dll in $CriticalDlls) {
-        $dllPath = Join-Path $StagingDir $dll
-        if (Test-Path $dllPath) {
-            Write-Host "  Found $dll" -ForegroundColor Green
-        } else {
-            Write-Host "  Missing $dll" -ForegroundColor Red
-            $MissingDlls += $dll
-        }
-    }
-
-    if ($MissingDlls.Count -gt 0) {
-        Write-Host ""
-        Write-Host "[WARNING] Missing $($MissingDlls.Count) critical DLLs:" -ForegroundColor Yellow
-        $MissingDlls | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
-        Write-Host "The MSIX package may not work properly without these DLLs" -ForegroundColor Yellow
-    } else {
-        Write-Host "All critical DLLs are present!" -ForegroundColor Green
-    }
-    Write-Host "=== END DLL VERIFICATION ===" -ForegroundColor Cyan
 
     # Verify executable was copied correctly
     $stagedExePath = Join-Path $StagingDir "kiwix-desktop.exe"
