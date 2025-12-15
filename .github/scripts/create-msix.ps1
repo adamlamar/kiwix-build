@@ -123,7 +123,7 @@ try {
             $QtDlls = @(
                 "Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll", "Qt6WebEngineWidgets.dll",
                 "Qt6WebEngineCore.dll", "Qt6WebChannel.dll", "Qt6Network.dll", "Qt6Positioning.dll",
-                "Qt6PrintSupport.dll", "Qt6QuickWidgets.dll", "Qt6Quick.dll"
+                "Qt6PrintSupport.dll", "Qt6QuickWidgets.dll", "Qt6Quick.dll", "Qt6Qml.dll", "Qt6QmlModels.dll"
             )
 
             foreach ($dll in $QtDlls) {
@@ -182,7 +182,7 @@ try {
     # Verify critical DLLs are present
     Write-Host "=== VERIFYING CRITICAL DLLS ===" -ForegroundColor Cyan
     $CriticalDlls = @(
-        "Qt6PrintSupport.dll", "Qt6QuickWidgets.dll", "Qt6Quick.dll",
+        "Qt6PrintSupport.dll", "Qt6QuickWidgets.dll", "Qt6Quick.dll", "Qt6Qml.dll", "Qt6QmlModels.dll",
         "Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll"
     )
 
