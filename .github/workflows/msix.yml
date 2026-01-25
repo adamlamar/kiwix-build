@@ -8,12 +8,11 @@ on:
       nightly_url:
         description: 'URL to nightly build zip file'
         required: false
-        default: 'https://download.kiwix.org/nightly/2025-12-11/kiwix-desktop_windows_x64_2025-12-11.zip'
+        default: 'https://download.kiwix.org/nightly/2026-01-24/kiwix-desktop_windows_x64_2026-01-24.zip'
 
 env:
   # Default nightly build URL - change this to update the version
-  NIGHTLY_URL: 'https://download.kiwix.org/nightly/2025-12-11/kiwix-desktop_windows_x64_2025-12-11.zip'
-
+  NIGHTLY_URL: 'https://download.kiwix.org/nightly/2026-01-24/kiwix-desktop_windows_x64_2026-01-24.zip'
 jobs:
   build-msix:
     name: Build and Sign MSIX Package
