@@ -80,18 +80,28 @@ try {
     Copy-Item $ExePath $StagingDir -Force
     Write-Host "  Copied kiwix-desktop.exe" -ForegroundColor Green
 
-    # Copy DLL dependencies from the bin directory
+    # Copy DLL dependencies from the bin directory (excluding debug DLLs)
     $BinPath = $BuildPath
-    Get-ChildItem $BinPath -Filter "*.dll" | ForEach-Object {
+    Get-ChildItem $BinPath -Filter "*.dll" | Where-Object { $_.Name -notmatch 'd\.dll$' } | ForEach-Object {
         Copy-Item $_.FullName $StagingDir -Force
         Write-Host "  Copied $($_.Name)" -ForegroundColor Gray
     }
 
-    # Copy from lib directory if it exists
+    # Copy additional executables from bin directory
+    $additionalExes = @("aria2c.exe")
+    foreach ($exe in $additionalExes) {
+        $exePath = Join-Path $BinPath $exe
+        if (Test-Path $exePath) {
+            Copy-Item $exePath $StagingDir -Force
+            Write-Host "  Copied $exe" -ForegroundColor Green
+        }
+    }
+
+    # Copy from lib directory if it exists (excluding debug DLLs)
     $LibPath = $BuildPath -replace "\\bin$", "\lib"
     if (Test-Path $LibPath) {
         Write-Host "Copying additional libraries from: $LibPath" -ForegroundColor Cyan
-        Get-ChildItem $LibPath -Filter "*.dll" -Recurse | ForEach-Object {
+        Get-ChildItem $LibPath -Filter "*.dll" -Recurse | Where-Object { $_.Name -notmatch 'd\.dll$' } | ForEach-Object {
             $destPath = Join-Path $StagingDir $_.Name
             if (-not (Test-Path $destPath)) {
                 Copy-Item $_.FullName $StagingDir -Force
@@ -119,8 +129,8 @@ try {
         if (Test-Path $qtPath) {
             Write-Host "Found Qt binaries at: $qtPath" -ForegroundColor Cyan
 
-            # Copy ALL Qt DLLs instead of whitelisting specific ones
-            Get-ChildItem $qtPath -Filter "*.dll" | ForEach-Object {
+            # Copy Qt DLLs (excluding debug versions ending with 'd.dll')
+            Get-ChildItem $qtPath -Filter "Qt*.dll" | Where-Object { $_.Name -notmatch 'd\.dll$' } | ForEach-Object {
                 $destPath = Join-Path $StagingDir $_.Name
                 if (-not (Test-Path $destPath)) {
                     Copy-Item $_.FullName $StagingDir -Force
@@ -130,12 +140,52 @@ try {
                 }
             }
 
+            # Copy OpenSSL DLLs (critical for HTTPS)
+            $opensslDlls = @("libcrypto-3-x64.dll", "libssl-3-x64.dll")
+            foreach ($dll in $opensslDlls) {
+                $dllPath = Join-Path $qtPath $dll
+                if (Test-Path $dllPath) {
+                    Copy-Item $dllPath $StagingDir -Force
+                    Write-Host "  Copied $dll" -ForegroundColor Green
+                }
+            }
+
+            # Copy QtWebEngineProcess.exe (CRITICAL for WebEngine to work)
+            $webEngineProcess = Join-Path $qtPath "QtWebEngineProcess.exe"
+            if (Test-Path $webEngineProcess) {
+                Copy-Item $webEngineProcess $StagingDir -Force
+                Write-Host "  Copied QtWebEngineProcess.exe" -ForegroundColor Green
+            } else {
+                Write-Host "  [WARNING] QtWebEngineProcess.exe not found - WebEngine will not work!" -ForegroundColor Red
+            }
+
+            $qtBaseDir = Split-Path $qtPath
+
             # Copy Qt plugins
-            $PluginsSource = Join-Path (Split-Path $qtPath) "plugins"
+            $PluginsSource = Join-Path $qtBaseDir "plugins"
             if (Test-Path $PluginsSource) {
-                $PluginsDest = Join-Path $StagingDir "plugins"
-                Copy-Item $PluginsSource $PluginsDest -Recurse -Force
-                Write-Host "  Copied Qt plugins directory" -ForegroundColor Gray
+                # Copy each plugin subdirectory individually to root of staging (Qt expects them at root level)
+                Get-ChildItem $PluginsSource -Directory | ForEach-Object {
+                    $pluginDest = Join-Path $StagingDir $_.Name
+                    Copy-Item $_.FullName $pluginDest -Recurse -Force
+                    Write-Host "  Copied plugin directory: $($_.Name)" -ForegroundColor Gray
+                }
+            }
+
+            # Copy Qt resources directory
+            $ResourcesSource = Join-Path $qtBaseDir "resources"
+            if (Test-Path $ResourcesSource) {
+                $ResourcesDest = Join-Path $StagingDir "resources"
+                Copy-Item $ResourcesSource $ResourcesDest -Recurse -Force
+                Write-Host "  Copied Qt resources directory" -ForegroundColor Gray
+            }
+
+            # Copy Qt translations
+            $TranslationsSource = Join-Path $qtBaseDir "translations"
+            if (Test-Path $TranslationsSource) {
+                $TranslationsDest = Join-Path $StagingDir "translations"
+                Copy-Item $TranslationsSource $TranslationsDest -Recurse -Force
+                Write-Host "  Copied Qt translations directory" -ForegroundColor Gray
             }
 
             $QtFound = $true
@@ -187,7 +237,7 @@ try {
 
     # Create qt.conf for Qt configuration
     Write-Host "Creating qt.conf..." -ForegroundColor Cyan
-    $qtConf = "[Paths]`nPlugins = plugins`n`n[WebEngine]`nBrowserSubprocessPath = QtWebEngineProcess.exe"
+    $qtConf = "[Paths]`nPlugins = .`n`n[WebEngine]`nBrowserSubprocessPath = QtWebEngineProcess.exe"
     $qtConfPath = Join-Path $StagingDir "qt.conf"
     $qtConf | Set-Content $qtConfPath -Encoding UTF8
 
