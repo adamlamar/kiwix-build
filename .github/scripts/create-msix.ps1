@@ -140,13 +140,27 @@ try {
                 }
             }
 
-            # Copy OpenSSL DLLs (critical for HTTPS)
+            # Copy OpenSSL DLLs (critical for HTTPS) - check both Qt dir and bin dir
             $opensslDlls = @("libcrypto-3-x64.dll", "libssl-3-x64.dll")
             foreach ($dll in $opensslDlls) {
+                $copied = $false
+                # First try Qt directory
                 $dllPath = Join-Path $qtPath $dll
                 if (Test-Path $dllPath) {
                     Copy-Item $dllPath $StagingDir -Force
-                    Write-Host "  Copied $dll" -ForegroundColor Green
+                    Write-Host "  Copied $dll from Qt directory" -ForegroundColor Green
+                    $copied = $true
+                } else {
+                    # Try bin directory
+                    $dllPath = Join-Path $BinPath $dll
+                    if (Test-Path $dllPath) {
+                        Copy-Item $dllPath $StagingDir -Force
+                        Write-Host "  Copied $dll from bin directory" -ForegroundColor Green
+                        $copied = $true
+                    }
+                }
+                if (-not $copied) {
+                    Write-Host "  [WARNING] $dll not found - HTTPS will not work!" -ForegroundColor Red
                 }
             }
 
@@ -171,11 +185,23 @@ try {
                 }
             }
 
-            # Copy VC++ redistributable if present
-            $vcRedist = Join-Path $qtPath "vc_redist.x64.exe"
-            if (Test-Path $vcRedist) {
-                Copy-Item $vcRedist $StagingDir -Force
-                Write-Host "  Copied vc_redist.x64.exe" -ForegroundColor Green
+            # Copy VC++ redistributable if present - check multiple locations
+            $vcRedistLocations = @(
+                (Join-Path $qtPath "vc_redist.x64.exe"),
+                (Join-Path $BinPath "vc_redist.x64.exe"),
+                (Join-Path $qtBaseDir "vc_redist.x64.exe")
+            )
+            $vcRedistCopied = $false
+            foreach ($vcRedist in $vcRedistLocations) {
+                if (Test-Path $vcRedist) {
+                    Copy-Item $vcRedist $StagingDir -Force
+                    Write-Host "  Copied vc_redist.x64.exe" -ForegroundColor Green
+                    $vcRedistCopied = $true
+                    break
+                }
+            }
+            if (-not $vcRedistCopied) {
+                Write-Host "  [INFO] vc_redist.x64.exe not found (optional)" -ForegroundColor Yellow
             }
 
             # Copy QtWebEngineProcess.exe (CRITICAL for WebEngine to work)
