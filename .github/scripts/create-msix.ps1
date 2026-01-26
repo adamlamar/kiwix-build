@@ -150,6 +150,34 @@ try {
                 }
             }
 
+            # Copy WebEngine rendering dependencies (CRITICAL for browser functionality)
+            $webEngineDlls = @("d3dcompiler_47.dll", "opengl32sw.dll")
+            foreach ($dll in $webEngineDlls) {
+                $dllPath = Join-Path $qtPath $dll
+                if (Test-Path $dllPath) {
+                    Copy-Item $dllPath $StagingDir -Force
+                    Write-Host "  Copied $dll (WebEngine renderer)" -ForegroundColor Green
+                } else {
+                    Write-Host "  [WARNING] $dll not found - WebEngine may crash!" -ForegroundColor Yellow
+                }
+            }
+
+            # Copy ICU data files if present
+            Get-ChildItem $qtPath -Filter "icu*.dll" | ForEach-Object {
+                $destPath = Join-Path $StagingDir $_.Name
+                if (-not (Test-Path $destPath)) {
+                    Copy-Item $_.FullName $StagingDir -Force
+                    Write-Host "  Copied $($_.Name)" -ForegroundColor Gray
+                }
+            }
+
+            # Copy VC++ redistributable if present
+            $vcRedist = Join-Path $qtPath "vc_redist.x64.exe"
+            if (Test-Path $vcRedist) {
+                Copy-Item $vcRedist $StagingDir -Force
+                Write-Host "  Copied vc_redist.x64.exe" -ForegroundColor Green
+            }
+
             # Copy QtWebEngineProcess.exe (CRITICAL for WebEngine to work)
             $webEngineProcess = Join-Path $qtPath "QtWebEngineProcess.exe"
             if (Test-Path $webEngineProcess) {
