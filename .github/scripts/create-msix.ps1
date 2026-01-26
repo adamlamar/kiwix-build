@@ -160,9 +160,22 @@ try {
                     }
                 }
                 if (-not $copied) {
-                    Write-Host "  [WARNING] $dll not found - HTTPS will not work!" -ForegroundColor Red
+                    Write-Host "  [WARNING] $dll not found in Qt or bin directories" -ForegroundColor Yellow
+                    Write-Host "            Searching system directories..." -ForegroundColor Yellow
+                    # Try to find in system PATH
+                    $foundInPath = Get-Command $dll -ErrorAction SilentlyContinue
+                    if ($foundInPath) {
+                        Copy-Item $foundInPath.Source $StagingDir -Force
+                        Write-Host "  Copied $dll from system PATH" -ForegroundColor Green
+                        $copied = $true
+                    }
+                }
+                if (-not $copied) {
+                    Write-Host "  [WARNING] $dll not found - HTTPS may not work!" -ForegroundColor Red
                 }
             }
+
+            $qtBaseDir = Split-Path $qtPath
 
             # Copy WebEngine rendering dependencies (CRITICAL for browser functionality)
             $webEngineDlls = @("d3dcompiler_47.dll", "opengl32sw.dll")
@@ -212,8 +225,6 @@ try {
             } else {
                 Write-Host "  [WARNING] QtWebEngineProcess.exe not found - WebEngine will not work!" -ForegroundColor Red
             }
-
-            $qtBaseDir = Split-Path $qtPath
 
             # Copy Qt plugins
             $PluginsSource = Join-Path $qtBaseDir "plugins"
