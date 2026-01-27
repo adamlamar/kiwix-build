@@ -2,13 +2,13 @@
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
-  <Identity Name="KiwixDesktop"
+  <Identity Name="Kiwix.KiwixDesktop"
             Version="{VERSION}"
-            Publisher="CN=Kiwix"
+            Publisher="CN=0A5438F5-EEA6-4300-9B77-E45BBD148885"
             ProcessorArchitecture="x64" />
 
   <Properties>
-    <DisplayName>Kiwix Desktop</DisplayName>
+    <DisplayName>Kiwix</DisplayName>
     <PublisherDisplayName>Kiwix</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <Description>Kiwix Desktop - Offline Wikipedia and Educational Content Reader</Description>
