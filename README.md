@@ -5,7 +5,7 @@ Kiwix Build provides advanced tools to (cross-)compile easily
 and libraries and deploy them. They have been tested [Ubuntu](https://ubuntu.com)
 22.04+.
 
-Kiwix Build audience is:
+Kiwix Build audience is :
 * Advanced users who don't want/can handle all the dependencies
   compilations manually
 * Kiwix developer team for its own CI/CD
